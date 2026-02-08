@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dread AI GM</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="wrap">
+    <h1>Dread AI GM (Starter)</h1>
+
+    <section class="card">
+      <h2>Setup</h2>
+
+      <label>Story description</label>
+      <textarea id="story" rows="4" placeholder="A haunted winter lodge. Something in the walls learns your secrets..."></textarea>
+
+      <label>Character sheets (paste text)</label>
+      <textarea id="characters" rows="6" placeholder="Name: ...&#10;Goal: ...&#10;Fear: ...&#10;Secret: ..."></textarea>
+
+      <label>Constraints (optional)</label>
+      <textarea id="constraints" rows="3" placeholder="Tone: slow dread. No sexual violence. Keep it PG-13."></textarea>
+
+      <div class="row">
+        <button id="btnGenerate">Generate beats & endings</button>
+        <button id="btnStart" disabled>Start game</button>
+      </div>
+
+      <div class="grid2">
+        <div>
+          <h3>Beats (5)</h3>
+          <ol id="beatsList"></ol>
+        </div>
+        <div>
+          <h3>Endings (2–3)</h3>
+          <ol id="endingsList"></ol>
+        </div>
+      </div>
+
+      <p class="hint">Tip: You can edit the generated beats/endings by clicking a line after they appear.</p>
+    </section>
+
+    <section class="card">
+      <h2>Play</h2>
+
+      <label>Players do...</label>
+      <textarea id="playerInput" rows="3" placeholder="We split up to search the basement and the attic."></textarea>
+
+      <div class="row">
+        <button id="btnNext" disabled>Next scene</button>
+        <button id="btnReset">Reset</button>
+      </div>
+
+      <div class="out">
+        <h3>Scene</h3>
+        <div id="sceneText" class="mono"></div>
+
+        <h3>Choices</h3>
+        <ul id="choices"></ul>
+
+        <h3>Progress</h3>
+        <div id="progress" class="mono"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>
