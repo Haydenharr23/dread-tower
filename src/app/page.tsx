@@ -25,10 +25,11 @@ import {
   User,
   Mic,
   Boxes,
+  History,
 } from "lucide-react";
 import { AiRichText } from "@/components/AiRichText";
 
-type TranscriptEntry = { role: string; text: string };
+type TranscriptEntry = { role: "players" | "gm" | "tower"; text: string };
 type SessionMode = "pick" | "solo" | "host";
 
 const container = {
@@ -129,6 +130,8 @@ export default function Home() {
   const [pendingRisk, setPendingRisk] = useState<{ text: string; context: string } | null>(null);
   const [gameOver, setGameOver] = useState(false);
   const [pullAnimating, setPullAnimating] = useState(false);
+  const [pullOutcome, setPullOutcome] = useState<"success" | "fail" | null>(null);
+  const [logModalOpen, setLogModalOpen] = useState(false);
 
   const effectiveStory =
     sessionMode === "solo"
@@ -176,9 +179,10 @@ export default function Home() {
         endings: e,
         soloSession: true,
       });
-      setSceneText(start.sceneText ?? "");
+      const opening = start.sceneText ?? "";
+      setSceneText(opening);
       setChoices(start.choices ?? []);
-      setTranscript([]);
+      setTranscript([{ role: "gm", text: opening }]);
       setHostSuggestions([]);
       setJengaPulls(0);
       setPendingRisk(null);
@@ -248,6 +252,7 @@ export default function Home() {
     const text = playerInput.trim();
     if (!text || gameOver || pendingRisk) return;
     setError(null);
+    if (sessionMode === "solo") setPullOutcome(null);
     setLoading(true);
     try {
       const data = await callAI({
@@ -320,9 +325,14 @@ export default function Home() {
       setPendingRisk(null);
       if (Array.isArray(data.beatHit)) setBeatHit(data.beatHit);
       if (Array.isArray(data.endingHit)) setEndingHit(data.endingHit);
+      const towerLine = success
+        ? "The block comes free. The tower still stands."
+        : "The tower collapses.";
+      setPullOutcome(success ? "success" : "fail");
       setTranscript((prev) => [
         ...prev,
         { role: "players", text: riskText },
+        { role: "tower", text: towerLine },
         { role: "gm", text: data.sceneText ?? "" },
       ]);
       setSceneText(data.sceneText ?? "");
@@ -445,7 +455,7 @@ export default function Home() {
         >
           <Skull className="w-10 h-10 text-blood-bright" strokeWidth={1.5} />
           <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-wide text-blood-bright">
-            Dread AI GM
+            The Dread Tower
           </h1>
           <Moon className="w-8 h-8 text-blood-light" strokeWidth={1.5} />
         </motion.div>
@@ -780,15 +790,50 @@ export default function Home() {
               </p>
             </div>
             {sessionMode === "solo" && gameStarted && (
-              <div className="flex items-center gap-2 rounded-lg border border-blood/35 bg-blood/10 px-3 py-2 text-xs text-muted font-body shrink-0">
-                <Boxes className="w-4 h-4 text-blood-bright shrink-0" aria-hidden />
-                <span>
-                  Tower pulls: <span className="text-[#e8e8e8] font-semibold tabular-nums">{jengaPulls}</span>
-                  {gameOver && <span className="text-blood-bright font-semibold"> — Ended</span>}
-                </span>
+              <div className="flex flex-col items-stretch sm:items-end gap-2 shrink-0">
+                <div className="flex items-center gap-2 rounded-lg border border-blood/35 bg-blood/10 px-3 py-2 text-xs text-muted font-body">
+                  <Boxes className="w-4 h-4 text-blood-bright shrink-0" aria-hidden />
+                  <span>
+                    Tower pulls: <span className="text-[#e8e8e8] font-semibold tabular-nums">{jengaPulls}</span>
+                    {gameOver && <span className="text-blood-bright font-semibold"> — Ended</span>}
+                  </span>
+                </div>
+                <motion.button
+                  type="button"
+                  onClick={() => setLogModalOpen(true)}
+                  className="rounded-lg border border-border bg-input/60 text-[#e0e0e0] px-3 py-2 text-xs font-semibold font-body flex items-center justify-center gap-2 hover:bg-input transition-colors"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <History className="w-4 h-4 shrink-0 text-blood-bright" aria-hidden />
+                  Full gameplay log
+                </motion.button>
               </div>
             )}
           </div>
+
+          {sessionMode === "solo" && gameStarted && pullOutcome && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`mb-6 rounded-xl border px-4 py-3 text-sm font-body ${
+                pullOutcome === "success"
+                  ? "border-emerald-700/60 bg-emerald-950/35 text-emerald-100"
+                  : "border-blood bg-blood/20 text-red-100"
+              }`}
+              role="status"
+            >
+              {pullOutcome === "success" ? (
+                <span>
+                  <strong className="font-semibold">Pull succeeded.</strong> The tower still stands—your action goes through.
+                </span>
+              ) : (
+                <span>
+                  <strong className="font-semibold">The tower fell.</strong> This risky action fails; see the scene below.
+                </span>
+              )}
+            </motion.div>
+          )}
 
           <div className="space-y-8">
             {/* 1 — Scene (primary read) */}
@@ -998,6 +1043,61 @@ export default function Home() {
                   </>
                 )}
               </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {logModalOpen && sessionMode === "solo" && (
+          <motion.div
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setLogModalOpen(false)}
+          >
+            <motion.div
+              className="max-w-2xl w-full max-h-[85vh] flex flex-col rounded-2xl border border-blood/50 bg-card/98 shadow-2xl"
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.98, opacity: 0 }}
+              transition={{ type: "spring", damping: 26 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4 shrink-0">
+                <h3 className="font-display text-lg text-blood-light flex items-center gap-2">
+                  <History className="w-5 h-5 text-blood-bright shrink-0" />
+                  Full gameplay log
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setLogModalOpen(false)}
+                  className="text-sm text-muted hover:text-blood-light font-body underline underline-offset-4"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="overflow-y-auto px-5 py-4 space-y-5 text-left">
+                {transcript.length === 0 ? (
+                  <p className="text-muted text-sm font-body">Nothing logged yet.</p>
+                ) : (
+                  transcript.map((entry, i) => (
+                    <div key={i} className="border-b border-border/50 pb-4 last:border-0 last:pb-0">
+                      <div className="text-[0.7rem] uppercase tracking-wider text-blood-bright/90 font-body mb-1.5">
+                        {entry.role === "players"
+                          ? "You"
+                          : entry.role === "tower"
+                            ? "Tower"
+                            : "Story"}
+                      </div>
+                      <div className="input-text text-[0.98rem] leading-relaxed text-[#e8e8e8]">
+                        <AiRichText text={entry.text} />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </motion.div>
           </motion.div>
         )}

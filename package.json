@@ -1,9 +1,10 @@
 {
   "name": "dread-tower",
   "version": "1.0.0",
-  "description": "Dread AI GM - AI game master for Dread-style horror one-shots",
+  "description": "The Dread Tower — solo and host horror one-shots with AI",
   "private": true,
   "scripts": {
+    "clean": "node -e \"try{require('fs').rmSync('.next',{recursive:true,force:true})}catch(e){}\"",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

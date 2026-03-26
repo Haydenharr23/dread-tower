@@ -16,8 +16,8 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "Dread AI GM",
-  description: "AI game master for Dread-style horror one-shots",
+  title: "The Dread Tower",
+  description: "Solo and host horror one-shots with AI and Dread-style tension",
 };
 
 export default function RootLayout({
