@@ -318,6 +318,35 @@ export function PhysicsTowerScene({
       bodiesRef.current.set(spec.id, body);
     }
 
+    // Pre-warm: simulate until blocks settle so the first rendered frame isn't an explosion.
+    // High CONTACT_STIFFNESS causes violent correction impulses on the very first step when
+    // block faces are nearly touching — running headless steps resolves those forces before
+    // any mesh is visible.
+    world.allowSleep = true;
+    world.sleepSpeedLimit = 0.1;
+    world.sleepTimeLimit  = 0.3;
+    for (let i = 0; i < 150; i++) {
+      world.step(1 / 60);
+    }
+    world.allowSleep = false;
+    // Zero residual velocity from warmup drift and wake every block body.
+    bodiesRef.current.forEach((warmupBody) => {
+      warmupBody.wakeUp();
+      warmupBody.velocity.set(0, 0, 0);
+      warmupBody.angularVelocity.set(0, 0, 0);
+    });
+    // Snap the top-3 original layers to canonical positions after any warmup drift.
+    const warmupSpecs = buildTowerBlocks(PHYSICS_TOWER_LAYERS);
+    for (const spec of warmupSpecs) {
+      if (spec.level < PHYSICS_TOWER_LAYERS - 3) continue;
+      const b = bodiesRef.current.get(spec.id);
+      if (!b) continue;
+      b.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+      b.quaternion.set(0, 0, 0, 1);
+      b.velocity.set(0, 0, 0);
+      b.angularVelocity.set(0, 0, 0);
+    }
+
     worldRef.current = world;
     return () => { worldRef.current = null; bodiesRef.current.clear(); };
   }, [resetNonce, removedKey, relocKey]); // eslint-disable-line react-hooks/exhaustive-deps
