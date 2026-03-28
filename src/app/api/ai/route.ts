@@ -71,6 +71,31 @@ function extractBeatsAndEndings(raw: string): { beats: string[]; endings: string
   return { beats, endings };
 }
 
+type PullOutcomeBranch = {
+  sceneText: string;
+  choices: string[];
+  beatHit: boolean[];
+  endingHit: boolean[];
+  gameOver?: boolean;
+};
+
+function isPullOutcomeBranch(
+  x: unknown,
+  beatLen: number,
+  endLen: number
+): x is PullOutcomeBranch {
+  if (!x || typeof x !== "object") return false;
+  const o = x as Record<string, unknown>;
+  return (
+    typeof o.sceneText === "string" &&
+    Array.isArray(o.choices) &&
+    Array.isArray(o.beatHit) &&
+    Array.isArray(o.endingHit) &&
+    o.beatHit.length === beatLen &&
+    o.endingHit.length === endLen
+  );
+}
+
 type GeminiJsonConfig = { maxOutputTokens?: number; temperature?: number };
 
 async function geminiRaw(prompt: string, config?: GeminiJsonConfig): Promise<string> {
@@ -125,6 +150,18 @@ export async function POST(request: NextRequest) {
       console.error("[api/ai] Failed to get body:", e);
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
+
+    const expectedPasskey = (
+      process.env.AI_PASSKEY ?? process.env.NEXT_PUBLIC_AI_PASSKEY ?? "1234"
+    ).trim();
+    const providedPasskey = String(body.aiPasskey ?? "").trim();
+    if (providedPasskey !== expectedPasskey) {
+      return NextResponse.json(
+        { error: "AI modes require a valid passkey." },
+        { status: 401 }
+      );
+    }
+
     const mode = body.mode as string | undefined;
     console.log("[api/ai] mode =", mode, "| GEMINI_API_KEY set =", !!getGeminiApiKey());
 
@@ -148,38 +185,6 @@ export async function POST(request: NextRequest) {
         if (!constraintsText) {
           constraintsText = "Slow-burn isolation horror; PG-13; no sexual violence.";
           filledConstraints = constraintsText;
-        }
-      } else {
-        try {
-          if (!characterSheets || !constraintsText) {
-            const bootPrompt = `You are inventing content for a solo horror tabletop one-shot. Return ONLY valid JSON.
-Return shape: { "characters": string, "constraints": string }
-- characters: one protagonist with Name, Goal, Fear, Secret (concise, under ~500 chars).
-- constraints: tone and safety limits in one line (e.g. slow dread, cosmic horror, PG-13).
-If the input already provides a value, you may still return improved text, but prefer fitting the implied tone.
-Input:
-${JSON.stringify({ haveCharacter: !!characterSheets, haveConstraints: !!constraintsText, hintCharacter: characterSheets, hintConstraints: constraintsText })}`;
-            const boot = await geminiJSON<{ characters: string; constraints: string }>(bootPrompt);
-            if (!String(body.characters ?? "").trim() && boot.characters) {
-              characterSheets = boot.characters;
-              filledCharacters = characterSheets;
-            }
-            if (!String(body.constraints ?? "").trim() && boot.constraints) {
-              constraintsText = boot.constraints;
-              filledConstraints = constraintsText;
-            }
-          }
-        } catch (e) {
-          console.error("[api/ai] solo bootstrap error:", e);
-          if (!characterSheets) {
-            characterSheets =
-              "Name: Morgan Vale\nGoal: Survive until dawn.\nFear: Being watched.\nSecret: They opened something they shouldn't have.";
-            filledCharacters = characterSheets;
-          }
-          if (!constraintsText) {
-            constraintsText = "Psychological horror; PG-13.";
-            filledConstraints = constraintsText;
-          }
         }
       }
       if (!storyDescription.trim()) {
@@ -221,14 +226,23 @@ ${JSON.stringify({ haveCharacter: !!characterSheets, haveConstraints: !!constrai
         ...(filledConstraints ? { filledConstraints } : {}),
       });
     }
+    const soloPlanExtra = soloBootstrap
+      ? `
+SOLO BOOTSTRAP (single response — no follow-up calls):
+- If characterSheets is empty or whitespace, invent a protagonist in "filledCharacters" (Name, Goal, Fear, Secret; under ~500 chars) and use that character for beats/endings. If the user already provided characterSheets, set "filledCharacters" to null.
+- If constraints is empty or whitespace, invent a one-line tone/safety line in "filledConstraints". If the user already provided constraints, set "filledConstraints" to null.
+`
+      : "";
     const system = `You are an expert horror GM assistant. All stories are horror-themed. Return ONLY valid JSON, no other text.
 Rules:
 - Use ONLY the storyDescription, characterSheets, and constraints in the JSON input below to create beats and endings.
 - Create exactly 5 beats and 2-3 endings that fit that story and those characters. Keep a horror tone.
 - Beats must be distinct, actionable, and reachable in a 1-3 hour session.
 - Respect all constraints (tone, content limits).
-- CRITICAL: Each beat and each ending must be a single line. No newlines or line breaks inside any string. Escape any double-quote inside a string with backslash (\\").`;
-    const returnShape = `Return shape: { "beats": ["line one", "line two", "line three", "line four", "line five"], "endings": ["ending one", "ending two", "ending three"] }`;
+- CRITICAL: Each beat and each ending must be a single line. No newlines or line breaks inside any string. Escape any double-quote inside a string with backslash (\\").${soloPlanExtra}`;
+    const returnShape = soloBootstrap
+      ? `Return shape: { "beats": ["line one", ... "line five"], "endings": ["ending one", ...], "filledCharacters": string | null, "filledConstraints": string | null }`
+      : `Return shape: { "beats": ["line one", "line two", "line three", "line four", "line five"], "endings": ["ending one", "ending two", "ending three"] }`;
 
     const promptPayload = {
       storyDescription,
@@ -242,17 +256,40 @@ Rules:
     });
     const promptText = `${system}\n${returnShape}\n\nInput (use this when generating beats and endings):\n${JSON.stringify(promptPayload, null, 2)}`;
     try {
-      let out: { beats: string[]; endings: string[] };
-      const rawText = await geminiRaw(promptText);
+      let out: {
+        beats: string[];
+        endings: string[];
+        filledCharacters?: string | null;
+        filledConstraints?: string | null;
+      };
+      const rawText = await geminiRaw(
+        promptText,
+        soloBootstrap ? { maxOutputTokens: 4096 } : undefined
+      );
       try {
-        out = parseJSON<{ beats: string[]; endings: string[] }>(rawText);
+        out = parseJSON<{
+          beats: string[];
+          endings: string[];
+          filledCharacters?: string | null;
+          filledConstraints?: string | null;
+        }>(rawText);
       } catch (parseErr) {
         const fallback = extractBeatsAndEndings(rawText);
         if (fallback.beats.length > 0 || fallback.endings.length > 0) {
-          out = fallback;
+          out = { ...fallback, filledCharacters: null, filledConstraints: null };
           console.log("[api/ai] generate_plan JSON parse failed; used fallback parser. beats:", out.beats?.length, "endings:", out.endings?.length);
         } else {
           throw parseErr;
+        }
+      }
+      if (soloBootstrap) {
+        const fc = typeof out.filledCharacters === "string" ? out.filledCharacters.trim() : "";
+        const fcons = typeof out.filledConstraints === "string" ? out.filledConstraints.trim() : "";
+        if (!String(body.characters ?? "").trim() && fc) {
+          filledCharacters = fc;
+        }
+        if (!String(body.constraints ?? "").trim() && fcons) {
+          filledConstraints = fcons;
         }
       }
       console.log("[api/ai] generate_plan success. beats:", out.beats?.length, "endings:", out.endings?.length);
@@ -268,6 +305,125 @@ Rules:
         ? "Rate limit or quota exceeded. Wait ~30 seconds and try again, or try model gemini-pro (set GEMINI_MODEL=gemini-pro in .env.local)."
         : raw;
       console.error("[api/ai] generate_plan error:", raw, err instanceof Error ? err.stack : "");
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  }
+
+  if (mode === "solo_begin") {
+    let characterSheets = String(body.characters ?? "").trim();
+    let constraintsText = String(body.constraints ?? "").trim();
+    let storyDescription = String(body.story ?? "").trim();
+    let filledCharacters: string | undefined;
+    let filledConstraints: string | undefined;
+
+    if (useStub) {
+      if (!characterSheets) {
+        characterSheets =
+          "Name: Morgan Vale\nGoal: Learn what happened the night the lodge closed.\nFear: Small enclosed spaces.\nSecret: They ignored a warning sign last winter.";
+        filledCharacters = characterSheets;
+      }
+      if (!constraintsText) {
+        constraintsText = "Slow-burn isolation horror; PG-13; no sexual violence.";
+        filledConstraints = constraintsText;
+      }
+      if (!storyDescription.trim()) {
+        storyDescription = `Solo horror one-shot. Protagonist:\n${characterSheets}`;
+      }
+      return NextResponse.json({
+        beats: [
+          "Discover the source of the scratching in the walls.",
+          "Find the old guestbook with the missing pages.",
+          "Learn what happened to the previous caretaker.",
+          "Uncover the ritual hidden in the cellar.",
+          "Face the entity before dawn.",
+        ],
+        endings: [
+          "The entity is bound again; the lodge is safe but changed.",
+          "Someone is lost; the survivors flee at first light.",
+          "A bargain is struck—at a cost.",
+        ],
+        sceneText:
+          "Blackthorn Lodge, late winter, near dark. You're on the porch because a letter asked you to come back about the night the place closed. The door is open a crack; inside, the air is warm and stale. A lantern on the desk flickers over a guestbook—names stop halfway down the page. Nobody answers when you call.\n\n" +
+          "The fire's been used recently. Ash in the hearth. Then a slow scrape of wood somewhere deeper in the building, then nothing. You're still on the threshold.",
+        choices: [
+          "Call out for the caretaker and stay in the light of the desk.",
+          "Shut the front door behind you and search the ground floor.",
+          "Follow the sound toward the stairs.",
+          "Read the guestbook for names and dates before moving on.",
+        ],
+        ...(filledCharacters ? { filledCharacters } : {}),
+        ...(filledConstraints ? { filledConstraints } : {}),
+      });
+    }
+
+    if (!storyDescription.trim()) {
+      storyDescription = `Solo horror one-shot. Protagonist:\n${characterSheets}`;
+    }
+
+    const soloOpeningRules = `
+SOLO SESSION — OPENING SCENE (sceneText):
+- First in-world moment. Do NOT list beats/endings or GM meta. Never quote beat/ending titles as a list.
+- LENGTH: **At most two paragraphs**, separated by one blank line (\\n\\n). Never a third paragraph. Target about **120–220 words total**—prefer the tight end of that range.
+- STYLE: **Dense and explanatory**: more information per sentence, fewer filler words. Favor concrete nouns/verbs. No bullet lists in sceneText—prose only.
+- VOICE (important): **Understated and matter-of-fact.** Avoid melodrama, purple prose, and theatrical lines. Sound like a calm narrator, not a movie trailer.
+- Cover: where, when if it matters, why they're here (from character), what's wrong or urgent now (one hook), then stop—do not resolve the horror.
+- choices: 3–5 short, actionable next moves.
+`;
+
+    const system = `You are an expert horror GM assistant AND a solo Dread-style horror GM. Return ONLY valid JSON. All stories are horror-themed.
+
+PART 1 — PLAN:
+- Create exactly 5 beats and 2-3 endings that fit the story and character. Each beat and ending must be a single line (no newlines inside strings). Escape double-quotes inside strings with backslash (\\\\").
+- If characterSheets is empty or whitespace, invent "filledCharacters" (Name, Goal, Fear, Secret; concise) and use it for beats/endings. If the user already provided characterSheets, set "filledCharacters" to null.
+- If constraints is empty or whitespace, invent "filledConstraints" (one line, tone/safety). If the user already provided constraints, set "filledConstraints" to null.
+
+PART 2 — OPENING (same JSON response):
+- sceneText and choices follow the SOLO OPENING rules below.
+- Plain prose only—never markdown (no **, _, #).
+
+${soloOpeningRules}
+
+Return shape: {
+  "beats": [ five lines ],
+  "endings": [ two or three lines ],
+  "filledCharacters": string | null,
+  "filledConstraints": string | null,
+  "sceneText": string,
+  "choices": [ 3-5 strings ]
+}`;
+    const user = JSON.stringify({
+      storyDescription,
+      characterSheets,
+      constraints: constraintsText,
+    });
+
+    try {
+      const out = await geminiJSON<{
+        beats: string[];
+        endings: string[];
+        filledCharacters?: string | null;
+        filledConstraints?: string | null;
+        sceneText: string;
+        choices: string[];
+      }>(`${system}\n\nInput:\n${user}`, { maxOutputTokens: 8192, temperature: 0.65 });
+      const fc = typeof out.filledCharacters === "string" ? out.filledCharacters.trim() : "";
+      const fcons = typeof out.filledConstraints === "string" ? out.filledConstraints.trim() : "";
+      if (!String(body.characters ?? "").trim() && fc) filledCharacters = fc;
+      if (!String(body.constraints ?? "").trim() && fcons) filledConstraints = fcons;
+      return NextResponse.json({
+        beats: Array.isArray(out.beats) ? out.beats : [],
+        endings: Array.isArray(out.endings) ? out.endings : [],
+        sceneText: out.sceneText ?? "",
+        choices: Array.isArray(out.choices) ? out.choices : [],
+        ...(filledCharacters ? { filledCharacters } : {}),
+        ...(filledConstraints ? { filledConstraints } : {}),
+      });
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : "AI request failed";
+      const msg = raw.includes("429") || raw.includes("quota") || raw.includes("Too Many Requests")
+        ? "Rate limit or quota exceeded. Wait ~30 seconds and try again, or try model gemini-pro (set GEMINI_MODEL=gemini-pro in .env.local)."
+        : raw;
+      console.error("[api/ai] solo_begin error:", raw, err instanceof Error ? err.stack : "");
       return NextResponse.json({ error: msg }, { status: 500 });
     }
   }
@@ -393,39 +549,42 @@ ${soloSession ? "Follow the SOLO SESSION rules above for sceneText." : "Write th
 
     if (useStub) {
       if (soloSession && resolvePull) {
-        if (resolvePull.success === false) {
-          const deathIdx = endings.findIndex((e: string) => /\b(die|death|lost|kill|perish)/i.test(String(e)));
-          const idx = deathIdx >= 0 ? deathIdx : 0;
-          const nh = endingHit.map((_, i) => i === idx);
-          return NextResponse.json({
-            sceneText:
-              "The tower shudders—and collapses. Your character does not walk away from this.\n\n(Stub: set GEMINI_API_KEY for full narration.)",
-            choices: [],
-            beatHit,
-            endingHit: nh,
-            requiresPull: false,
-            gameOver: true,
-          });
-        }
-        const firstUnhit = beatHit.findIndex((h: boolean) => !h);
-        if (firstUnhit !== -1) beatHit[firstUnhit] = true;
-        return NextResponse.json({
-          sceneText: `The block slides free. The moment breaks open.\n\n(Stub) The lodge responds to your action: "${playerText}"`,
-          choices: ["Press forward.", "Hang back.", "Listen."],
-          beatHit,
-          endingHit,
-          requiresPull: false,
-          gameOver: false,
-        });
+        return NextResponse.json(
+          { error: "resolvePull is no longer used; the client resolves pulls locally." },
+          { status: 400 }
+        );
       }
       if (soloSession && !resolvePull) {
         const risky =
           /\b(climb|jump|run|fight|grab|force|sneak|hide|risk|tower|jenga|pull)\b/i.test(playerText) ||
           playerText.length > 80;
         if (risky) {
+          const stubSuccess = {
+            sceneText: `The block slides free. The moment breaks open.\n\n(Stub) The lodge responds to your action: "${playerText}"`,
+            choices: ["Press forward.", "Hang back.", "Listen."],
+            beatHit: (() => {
+              const b = [...beatHit];
+              const i = b.findIndex((h) => !h);
+              if (i !== -1) b[i] = true;
+              return b;
+            })(),
+            endingHit: [...endingHit],
+            gameOver: false,
+          };
+          const deathIdx = endings.findIndex((e: string) => /\b(die|death|lost|kill|perish)/i.test(String(e)));
+          const idx = deathIdx >= 0 ? deathIdx : 0;
+          const stubFail = {
+            sceneText:
+              "The tower shudders—and collapses. Your character does not walk away from this.\n\n(Stub: set GEMINI_API_KEY for full narration.)",
+            choices: [] as string[],
+            beatHit,
+            endingHit: endingHit.map((_, i) => i === idx),
+            gameOver: true,
+          };
           return NextResponse.json({
             requiresPull: true,
             pullContext: "A risky moment—the tower demands a pull.",
+            pullBranch: { onSuccess: stubSuccess, onFailure: stubFail },
             sceneText: "",
             choices: [],
             beatHit,
@@ -473,59 +632,26 @@ SOLO / DREAD TOWER:
       : "";
 
     if (soloSession && resolvePull) {
-      const system = `You are an AI GM for a solo Dread-style horror one-shot. Return ONLY valid JSON.
-${immutableSolo}
-In sceneText, choices, and pullContext (if any), plain prose only—never markdown (no **, _, #).
-The player attempted an action that required a Jenga pull. The pull ${resolvePull.success === false ? "FAILED: the tower falls—this should be a death/loss outcome using the fixed endings." : "SUCCEEDED: narrate the outcome of their action in the story."}
-Return shape: { "sceneText": string, "choices": [3-5 strings], "beatHit": boolean[], "endingHit": boolean[], "gameOver": boolean }`;
-      const user = JSON.stringify({
-        story: body.story,
-        characters: body.characters,
-        constraints: body.constraints,
-        beats,
-        endings,
-        beatHit: body.beatHit,
-        endingHit: body.endingHit,
-        playersDo: playerText,
-        jengaPullCount,
-        pullSucceeded: resolvePull.success === true,
-        recentTranscript: body.transcriptTail || [],
-      });
-      try {
-        const out = await geminiJSON<{
-          sceneText: string;
-          choices: string[];
-          beatHit: boolean[];
-          endingHit: boolean[];
-          gameOver?: boolean;
-        }>(`${system}\n\nUser input:\n${user}`);
-        return NextResponse.json({
-          sceneText: out.sceneText ?? "",
-          choices: Array.isArray(out.choices) ? out.choices : [],
-          beatHit: Array.isArray(out.beatHit) ? out.beatHit : beatHit,
-          endingHit: Array.isArray(out.endingHit) ? out.endingHit : endingHit,
-          requiresPull: false,
-          gameOver: out.gameOver === true || resolvePull.success === false,
-        });
-      } catch (err) {
-        const raw = err instanceof Error ? err.message : "AI request failed";
-        const msg = raw.includes("429") || raw.includes("quota") || raw.includes("Too Many Requests")
-          ? "Rate limit or quota exceeded. Wait ~30 seconds and try again."
-          : raw;
-        console.error("[api/ai] next_scene resolvePull error:", raw, err instanceof Error ? err.stack : "");
-        return NextResponse.json({ error: msg }, { status: 500 });
-      }
+      return NextResponse.json(
+        { error: "resolvePull is no longer used; the client resolves pulls locally." },
+        { status: 400 }
+      );
     }
 
     if (soloSession && !resolvePull) {
       const system = `You are an AI GM for a solo Dread-style horror one-shot. Return ONLY valid JSON.
 ${immutableSolo}
-In sceneText, choices, and pullContext, plain prose only—never markdown (no **, _, #).
-First decide if the player's action is RISKY (physical danger, confrontation, tight escape, deception under pressure, reading forbidden text fast, etc.)—anything where failure could mean injury or death. If risky, they must pull from the Jenga tower before you resolve the action.
-Return shape: { "requiresPull": boolean, "pullContext": string, "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[] }
+In sceneText, choices, pullContext, and pullBranch fields, plain prose only—never markdown (no **, _, #).
+First decide if the player's action is RISKY (physical danger, confrontation, tight escape, deception under pressure, reading forbidden text fast, etc.)—anything where failure could mean injury or death. If risky, they must pull from the Jenga tower before you resolve the action—but you must still write BOTH outcomes in this same response (no second API call).
+
+Return shape: { "requiresPull": boolean, "pullContext": string, "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "pullBranch"?: { "onSuccess": { "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "gameOver": boolean }, "onFailure": { "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "gameOver": boolean } } }
+
 Rules:
 - If requiresPull is true: set sceneText to "" and choices to []. pullContext is one short sentence (in-world, no meta) about why the tower matters now.
-- If requiresPull is false: full scene and choices as usual. beatHit/endingHit updated.
+- If requiresPull is true: you MUST set pullBranch.onSuccess and pullBranch.onFailure. Each branch is the full state if the player pulls successfully (tower stands) vs if the tower falls (failure—usually death/loss; set gameOver true onFailure and mark exactly one appropriate endingHit).
+- onSuccess: narrate them succeeding at the risky action; update beatHit/endingHit arrays (same length as input).
+- onFailure: tower collapses; narrate death or total loss; gameOver true; endingHit reflects a death/loss ending.
+- If requiresPull is false: omit pullBranch. Full scene and choices as usual. beatHit/endingHit updated.
 - Never list or quote the full beats/endings arrays in sceneText.
 `;
       const user = JSON.stringify({
@@ -547,11 +673,30 @@ Rules:
           choices: string[];
           beatHit: boolean[];
           endingHit: boolean[];
-        }>(`${system}\n\nUser input:\n${user}`);
+          pullBranch?: {
+            onSuccess?: unknown;
+            onFailure?: unknown;
+          };
+        }>(`${system}\n\nUser input:\n${user}`, { maxOutputTokens: 8192, temperature: 0.65 });
         if (out.requiresPull === true) {
+          const pb = out.pullBranch;
+          const ok =
+            pb &&
+            isPullOutcomeBranch(pb.onSuccess, beatHit.length, endingHit.length) &&
+            isPullOutcomeBranch(pb.onFailure, beatHit.length, endingHit.length);
+          if (!ok) {
+            return NextResponse.json(
+              { error: "Solo response missing valid pull branches. Try your action again." },
+              { status: 500 }
+            );
+          }
           return NextResponse.json({
             requiresPull: true,
             pullContext: out.pullContext ?? "This could go badly.",
+            pullBranch: {
+              onSuccess: pb.onSuccess as PullOutcomeBranch,
+              onFailure: pb.onFailure as PullOutcomeBranch,
+            },
             sceneText: "",
             choices: [],
             beatHit,

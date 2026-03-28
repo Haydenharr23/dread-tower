@@ -2,32 +2,37 @@
 
 import { useEffect, useRef } from "react";
 
+/** Mermaid reference for product flows — not used on the home page; import only if you want a diagram elsewhere. */
 const DIAGRAM = `flowchart TD
 Start([Start])
 Start --> Mode{Choose Mode}
 
-Mode --> Solo[Select Solo Mode]
-Mode --> Host[Select Host Mode]
+Mode --> NASolo[Non-AI Solo]
+NASolo --> SelectStory[Select story]
+SelectStory --> SelectCharacter[Select character]
+SelectCharacter --> Scene[Scene]
+Scene --> Choice[Choice]
+Choice --> ScoreUpdate[Score update]
+ScoreUpdate --> NextScene[Next scene]
+NextScene --> EndingCheck{Ending?}
+EndingCheck -->|Continue| Scene
+EndingCheck -->|Finish| Ending([Ending])
 
-%% SOLO MODE
-Solo --> SoloChar[Enter character]
-SoloChar --> SoloTone["Enter story tone (optional)"]
-SoloTone --> SoloGen[AI generates beats, endings, opening scene]
-SoloGen --> SoloPlay[Player chooses actions]
-SoloPlay --> SoloLoop[AI runs full game loop]
-SoloLoop --> SoloControl[AI controls pacing, tension, ending]
-SoloControl --> SoloEnd([Ending])
+Mode --> NAGM[Non-AI GM Tools]
+NAGM --> ManualSetup[Manual setup]
+ManualSetup --> GMRun[GM run]
+GMRun --> ManualLog[Manual log]
+ManualLog --> ContinueSession[Continue session]
 
-%% HOST MODE
-Host --> HostStory[Enter story description]
-HostStory --> HostChars[Enter characters]
-HostChars --> HostGen[Generate beats and endings]
-HostGen --> HostAssist[AI provides suggestions only]
-HostAssist --> HostRun[GM runs session]
-HostRun --> HostPlayers[Players act]
-HostPlayers --> HostLog[GM logs events]
-HostLog --> HostAI[AI suggests consequences]
-HostAI --> HostEnd([Ending])`;
+Mode --> AISolo[AI Solo]
+AISolo --> AISetup[AI setup]
+AISetup --> AILoop[AI play loop]
+AILoop --> AIEnding([AI ending])
+
+Mode --> AIGM[AI GM Assistant]
+AIGM --> GMSetup[GM setup]
+GMSetup --> SuggestLoop[Suggest loop]
+SuggestLoop --> GMEnding([GM ending])`;
 
 export function Flowchart() {
   const ref = useRef<HTMLDivElement>(null);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Skull,
@@ -26,11 +26,25 @@ import {
   Mic,
   Boxes,
   History,
+  ClipboardList,
+  Lock,
 } from "lucide-react";
 import { AiRichText } from "@/components/AiRichText";
+import { AI_PASSKEY_STORAGE_KEY, getStoredAiPasskey } from "@/lib/aiGate";
+import { FreeSoloMode } from "@/components/FreeSoloMode";
+import { FreeGmMode } from "@/components/FreeGmMode";
 
 type TranscriptEntry = { role: "players" | "gm" | "tower"; text: string };
-type SessionMode = "pick" | "solo" | "host";
+type SessionMode = "pick" | "solo" | "host" | "free_solo" | "free_gm";
+
+/** Precomputed solo outcomes when a Jenga pull is required (one API call for both paths). */
+type PullBranchPayload = {
+  sceneText: string;
+  choices: string[];
+  beatHit: boolean[];
+  endingHit: boolean[];
+  gameOver?: boolean;
+};
 
 const container = {
   hidden: { opacity: 0 },
@@ -55,11 +69,15 @@ function Spinner({ className = "" }: { className?: string }) {
   );
 }
 
+const DEFAULT_AI_PASSKEY =
+  process.env.NEXT_PUBLIC_AI_PASSKEY?.trim() || "1234";
+
 async function callAI(payload: object) {
+  const aiPasskey = getStoredAiPasskey();
   const res = await fetch("/api/ai", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, aiPasskey }),
   });
   if (!res.ok) {
     const raw = await res.text();
@@ -127,16 +145,44 @@ export default function Home() {
   const [hostSuggestions, setHostSuggestions] = useState<string[]>([]);
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [jengaPulls, setJengaPulls] = useState(0);
-  const [pendingRisk, setPendingRisk] = useState<{ text: string; context: string } | null>(null);
+  const [pendingRisk, setPendingRisk] = useState<{
+    text: string;
+    context: string;
+    branch: { onSuccess: PullBranchPayload; onFailure: PullBranchPayload };
+  } | null>(null);
   const [gameOver, setGameOver] = useState(false);
   const [pullAnimating, setPullAnimating] = useState(false);
   const [pullOutcome, setPullOutcome] = useState<"success" | "fail" | null>(null);
   const [logModalOpen, setLogModalOpen] = useState(false);
+  const [aiModesUnlocked, setAiModesUnlocked] = useState(false);
+  const [passkeyDraft, setPasskeyDraft] = useState("");
+  const [passkeyError, setPasskeyError] = useState<string | null>(null);
+
+  useEffect(() => {
+  try {
+    if (getStoredAiPasskey()) {
+      setAiModesUnlocked(true);
+    }
+  } catch {
+      /* private mode, etc. */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (
+      (sessionMode === "solo" || sessionMode === "host") &&
+      !aiModesUnlocked
+    ) {
+      setSessionMode("pick");
+    }
+  }, [sessionMode, aiModesUnlocked]);
 
   const effectiveStory =
     sessionMode === "solo"
       ? `Solo horror one-shot. Protagonist:\n${characters.trim()}`
-      : story.trim();
+      : sessionMode === "host"
+        ? story.trim()
+        : "";
   const effectiveCharacters = characters.trim();
   const effectiveConstraints = constraints.trim();
 
@@ -148,40 +194,30 @@ export default function Home() {
     try {
       let chars = characters.trim();
       let cons = constraints.trim();
-      const plan = await callAI({
-        mode: "generate_plan",
+      const data = await callAI({
+        mode: "solo_begin",
         story: chars ? `Solo horror one-shot. Protagonist:\n${chars}` : "Solo horror one-shot.",
         characters: chars,
         constraints: cons,
-        soloBootstrap: true,
       });
-      if (typeof plan.filledCharacters === "string") {
-        chars = plan.filledCharacters;
-        setCharacters(plan.filledCharacters);
+      if (typeof data.filledCharacters === "string") {
+        chars = data.filledCharacters;
+        setCharacters(data.filledCharacters);
       }
-      if (typeof plan.filledConstraints === "string") {
-        cons = plan.filledConstraints;
-        setConstraints(plan.filledConstraints);
+      if (typeof data.filledConstraints === "string") {
+        cons = data.filledConstraints;
+        setConstraints(data.filledConstraints);
       }
-      const b = plan.beats ?? [];
-      const e = plan.endings ?? [];
+      const b = data.beats ?? [];
+      const e = data.endings ?? [];
       setBeats(b);
       setEndings(e);
       setBeatHit(new Array(b.length).fill(false));
       setEndingHit(new Array(e.length).fill(false));
 
-      const start = await callAI({
-        mode: "start_game",
-        story: `Solo horror one-shot. Protagonist:\n${chars}`,
-        characters: chars,
-        constraints: cons,
-        beats: b,
-        endings: e,
-        soloSession: true,
-      });
-      const opening = start.sceneText ?? "";
+      const opening = data.sceneText ?? "";
       setSceneText(opening);
-      setChoices(start.choices ?? []);
+      setChoices(Array.isArray(data.choices) ? data.choices : []);
       setTranscript([{ role: "gm", text: opening }]);
       setHostSuggestions([]);
       setJengaPulls(0);
@@ -269,9 +305,17 @@ export default function Home() {
         soloSession: sessionMode === "solo",
       });
       if (sessionMode === "solo" && data.requiresPull === true) {
+        const pb = data.pullBranch as
+          | { onSuccess: PullBranchPayload; onFailure: PullBranchPayload }
+          | undefined;
+        if (!pb?.onSuccess || !pb?.onFailure) {
+          setError("Could not load pull outcomes. Try your action again.");
+          return;
+        }
         setPendingRisk({
           text,
           context: typeof data.pullContext === "string" ? data.pullContext : "",
+          branch: pb,
         });
         setPlayerInput("");
         return;
@@ -295,7 +339,7 @@ export default function Home() {
     }
   };
 
-  const handleJengaPull = async () => {
+  const handleJengaPull = () => {
     if (!pendingRisk || pullAnimating || loading) return;
     const saved = pendingRisk;
     setPullAnimating(true);
@@ -303,47 +347,26 @@ export default function Home() {
     const attemptNumber = jengaPulls + 1;
     const collapseChance = Math.min(0.45, 0.06 + jengaPulls * 0.03);
     const success = Math.random() >= collapseChance;
-    setLoading(true);
-    try {
-      const data = await callAI({
-        mode: "next_scene",
-        story: effectiveStory,
-        characters: effectiveCharacters,
-        constraints: effectiveConstraints,
-        beats,
-        endings,
-        beatHit,
-        endingHit,
-        playerText: saved.text,
-        transcriptTail: transcript.slice(-10),
-        soloSession: true,
-        resolvePull: { success },
-        jengaPullCount: attemptNumber,
-      });
-      setJengaPulls(attemptNumber);
-      const riskText = saved.text;
-      setPendingRisk(null);
-      if (Array.isArray(data.beatHit)) setBeatHit(data.beatHit);
-      if (Array.isArray(data.endingHit)) setEndingHit(data.endingHit);
-      const towerLine = success
-        ? "The block comes free. The tower still stands."
-        : "The tower collapses.";
-      setPullOutcome(success ? "success" : "fail");
-      setTranscript((prev) => [
-        ...prev,
-        { role: "players", text: riskText },
-        { role: "tower", text: towerLine },
-        { role: "gm", text: data.sceneText ?? "" },
-      ]);
-      setSceneText(data.sceneText ?? "");
-      setChoices(Array.isArray(data.choices) ? data.choices : []);
-      if (data.gameOver === true || !success) setGameOver(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed");
-    } finally {
-      setLoading(false);
-      setPullAnimating(false);
-    }
+    const branch = success ? saved.branch.onSuccess : saved.branch.onFailure;
+    setJengaPulls(attemptNumber);
+    const riskText = saved.text;
+    setPendingRisk(null);
+    setBeatHit(branch.beatHit);
+    setEndingHit(branch.endingHit);
+    const towerLine = success
+      ? "The block comes free. The tower still stands."
+      : "The tower collapses.";
+    setPullOutcome(success ? "success" : "fail");
+    setTranscript((prev) => [
+      ...prev,
+      { role: "players", text: riskText },
+      { role: "tower", text: towerLine },
+      { role: "gm", text: branch.sceneText },
+    ]);
+    setSceneText(branch.sceneText);
+    setChoices(Array.isArray(branch.choices) ? branch.choices : []);
+    setGameOver(branch.gameOver === true || !success);
+    setPullAnimating(false);
   };
 
   const handleReset = () => window.location.reload();
@@ -466,7 +489,7 @@ export default function Home() {
           transition={{ delay: 0.3 }}
         >
           <Ghost className="w-4 h-4" />
-          Horror one-shots, AI-powered
+          Horror one-shots — free tools or AI-assisted play
         </motion.p>
       </motion.header>
 
@@ -478,42 +501,161 @@ export default function Home() {
             className="relative rounded-2xl border border-border bg-card/95 backdrop-blur-sm p-6 sm:p-8 shadow-2xl shadow-black/50"
           >
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blood/60 to-transparent" />
-            <h2 className="font-display text-xl sm:text-2xl font-semibold mb-4 text-blood-light text-center flex items-center justify-center gap-2">
+            <h2 className="font-display text-xl sm:text-2xl font-semibold mb-2 text-blood-light text-center flex items-center justify-center gap-2">
               <Network className="w-6 h-6" />
               Choose mode
             </h2>
-            <p className="text-muted text-sm text-center mb-6 font-body max-w-xl mx-auto">
-              Solo: you play alone—the AI runs the full loop. Host: you GM at the table—the AI only suggests consequences.
+            <p className="text-muted text-sm text-center mb-8 font-body max-w-xl mx-auto">
+              Free modes need no API key. AI modes use Gemini for narration or suggestions.
             </p>
-            <div className="grid sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
+
+            <p className="text-xs uppercase tracking-wider text-blood-bright/90 font-body mb-3 text-center">
+              Free modes
+            </p>
+            <div className="grid sm:grid-cols-2 gap-4 max-w-2xl mx-auto mb-10">
               <motion.button
                 type="button"
-                onClick={() => setSessionMode("solo")}
-                className="rounded-2xl border border-blood/50 bg-blood/15 hover:bg-blood/25 p-6 text-left transition-colors"
+                onClick={() => setSessionMode("free_solo")}
+                className="rounded-2xl border border-border bg-input/30 hover:bg-input/50 p-6 text-left transition-colors"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                <User className="w-8 h-8 text-blood-bright mb-3" strokeWidth={1.5} />
-                <span className="font-display text-lg font-semibold text-blood-light block mb-1">Solo mode</span>
-                <span className="text-muted text-sm font-body">Character → optional tone → AI generates and runs the session.</span>
+                <BookOpen className="w-8 h-8 text-blood-bright mb-3" strokeWidth={1.5} />
+                <span className="font-display text-lg font-semibold text-blood-light block mb-1">Solo Story (No AI)</span>
+                <span className="text-muted text-sm font-body">
+                  Pick a scripted story, a character, then play scene-by-scene with a tension score—no network calls.
+                </span>
               </motion.button>
               <motion.button
                 type="button"
-                onClick={() => setSessionMode("host")}
-                className="rounded-2xl border border-blood/50 bg-blood/15 hover:bg-blood/25 p-6 text-left transition-colors"
+                onClick={() => setSessionMode("free_gm")}
+                className="rounded-2xl border border-border bg-input/30 hover:bg-input/50 p-6 text-left transition-colors"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                <Mic className="w-8 h-8 text-blood-bright mb-3" strokeWidth={1.5} />
-                <span className="font-display text-lg font-semibold text-blood-light block mb-1">Host mode</span>
-                <span className="text-muted text-sm font-body">Story &amp; cast → you run play; AI suggests beats only when you ask.</span>
+                <ClipboardList className="w-8 h-8 text-blood-bright mb-3" strokeWidth={1.5} />
+                <span className="font-display text-lg font-semibold text-blood-light block mb-1">GM Tools (Manual)</span>
+                <span className="text-muted text-sm font-body">
+                  Pick a table kit—story (with tone baked in), cast, beats, and endings auto-fill; no AI. Run with scene notes and a log.
+                </span>
               </motion.button>
+            </div>
+
+            <div className="relative max-w-2xl mx-auto rounded-2xl border border-blood/30 bg-blood/5 p-4 sm:p-5">
+              <p className="text-xs uppercase tracking-wider text-blood-bright/90 font-body mb-1 text-center">
+                AI modes
+              </p>
+              <p className="text-muted text-xs text-center font-body mb-4">
+                Gemini-backed — locked so random visitors don’t burn your API quota. Unlock once per browser session.
+              </p>
+              <div
+                className={`grid sm:grid-cols-2 gap-4 ${!aiModesUnlocked ? "opacity-50 blur-[1px] pointer-events-none select-none" : ""}`}
+                aria-hidden={!aiModesUnlocked}
+              >
+                <motion.button
+                  type="button"
+                  disabled={!aiModesUnlocked}
+                  onClick={() => setSessionMode("solo")}
+                  className="rounded-2xl border border-blood/50 bg-blood/15 hover:bg-blood/25 disabled:opacity-60 p-6 text-left transition-colors"
+                  whileHover={aiModesUnlocked ? { scale: 1.02 } : undefined}
+                  whileTap={aiModesUnlocked ? { scale: 0.98 } : undefined}
+                >
+                  <User className="w-8 h-8 text-blood-bright mb-3" strokeWidth={1.5} />
+                  <span className="font-display text-lg font-semibold text-blood-light block mb-1">Solo (AI GM)</span>
+                  <span className="text-muted text-sm font-body">Optional character &amp; tone → AI plans and runs the full solo loop with Jenga risk.</span>
+                </motion.button>
+                <motion.button
+                  type="button"
+                  disabled={!aiModesUnlocked}
+                  onClick={() => setSessionMode("host")}
+                  className="rounded-2xl border border-blood/50 bg-blood/15 hover:bg-blood/25 disabled:opacity-60 p-6 text-left transition-colors"
+                  whileHover={aiModesUnlocked ? { scale: 1.02 } : undefined}
+                  whileTap={aiModesUnlocked ? { scale: 0.98 } : undefined}
+                >
+                  <Mic className="w-8 h-8 text-blood-bright mb-3" strokeWidth={1.5} />
+                  <span className="font-display text-lg font-semibold text-blood-light block mb-1">Host (AI Assistant)</span>
+                  <span className="text-muted text-sm font-body">You GM at the table; AI generates setup and optional consequence suggestions.</span>
+                </motion.button>
+              </div>
+              {!aiModesUnlocked && (
+                <div
+                  className="absolute inset-0 flex items-center justify-center rounded-2xl bg-background/85 backdrop-blur-sm border border-border/80 p-4 sm:p-6"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="ai-passkey-heading"
+                >
+                  <form
+                    className="w-full max-w-sm space-y-3"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const v = passkeyDraft.trim();
+                      if (v === DEFAULT_AI_PASSKEY) {
+                        try {
+                          sessionStorage.setItem(AI_PASSKEY_STORAGE_KEY, v);
+                        } catch {
+                          /* */
+                        }
+                        setAiModesUnlocked(true);
+                        setPasskeyError(null);
+                        setPasskeyDraft("");
+                      } else {
+                        setPasskeyError("Wrong passkey.");
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-center gap-2 text-blood-light">
+                      <Lock className="w-5 h-5 shrink-0" strokeWidth={1.5} />
+                      <h3
+                        id="ai-passkey-heading"
+                        className="font-display text-base font-semibold text-center"
+                      >
+                        Enter passkey
+                      </h3>
+                    </div>
+                    <p className="text-muted text-xs text-center font-body">
+                      Required to use Solo (AI) and Host (AI). Free modes stay open.
+                    </p>
+                    <input
+                      type="password"
+                      name="ai-passkey"
+                      autoComplete="off"
+                      value={passkeyDraft}
+                      onChange={(e) => {
+                        setPasskeyDraft(e.target.value);
+                        setPasskeyError(null);
+                      }}
+                      className="w-full rounded-xl border border-border bg-input/80 px-3 py-2.5 text-sm font-body input-text placeholder:text-muted/70 focus:outline-none focus:ring-2 focus:ring-blood/50"
+                      placeholder="Passkey"
+                      aria-invalid={!!passkeyError}
+                    />
+                    {passkeyError && (
+                      <p className="text-sm text-red-400 font-body text-center" role="alert">
+                        {passkeyError}
+                      </p>
+                    )}
+                    <button
+                      type="submit"
+                      className="w-full rounded-xl border border-blood/60 bg-blood/20 hover:bg-blood/30 py-2.5 text-sm font-display font-semibold text-blood-light transition-colors"
+                    >
+                      Unlock AI modes
+                    </button>
+                  </form>
+                </div>
+              )}
             </div>
           </motion.section>
         </div>
       )}
 
-      {sessionMode !== "pick" && (
+      {sessionMode === "free_solo" && (
+        <FreeSoloMode onBack={() => setSessionMode("pick")} />
+      )}
+
+      {sessionMode === "free_gm" && (
+        <FreeGmMode onBack={() => setSessionMode("pick")} />
+      )}
+
+      {(sessionMode === "solo" || sessionMode === "host") && (
       <motion.div
         variants={container}
         initial="hidden"
