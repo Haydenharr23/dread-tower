@@ -27,18 +27,18 @@ import {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 /** Lower than real gravity → less downward force → stabler tall stacks. */
-const GRAVITY = -6;
-const SOLVER_ITERATIONS = 60;
+const GRAVITY = -4;
+const SOLVER_ITERATIONS = 80;
 const BLOCK_MASS = 1.0;
-const BLOCK_LINEAR_DAMPING = 0.4;
-const BLOCK_ANGULAR_DAMPING = 0.9;
+const BLOCK_LINEAR_DAMPING = 0.6;
+const BLOCK_ANGULAR_DAMPING = 0.95;
 const CONTACT_STIFFNESS = 5e6;
 /**
  * High relaxation = contacts resolve over many timesteps = dramatically more
  * stable for tall stacks.  10–15 is ideal for Jenga-style towers.
  */
-const CONTACT_RELAXATION = 15;
-const BLOCK_FRICTION = 0.3;
+const CONTACT_RELAXATION = 20;
+const BLOCK_FRICTION = 0.5;
 const GROUND_FRICTION = 0.9;
 const RESTITUTION = 0.0;
 /**
@@ -345,7 +345,7 @@ export function PhysicsTowerScene({
       if (spec.level < PHYSICS_TOWER_LAYERS - 3) continue;
       const b = bodiesRef.current.get(spec.id);
       if (!b) continue;
-      if (b.position.y > spec.pos[1] + LAYOUT_H * 1.5) continue; // already relocated — leave alone
+      if (b.position.y > spec.pos[1] + LAYOUT_H * 3) continue; // already relocated — leave alone
       b.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
       b.quaternion.set(0, 0, 0, 1);
       b.velocity.set(0, 0, 0);
@@ -368,7 +368,7 @@ export function PhysicsTowerScene({
       // Skip blocks that have been pulled and auto-stacked on top of the tower.
       // Their Y is well above the canonical tower height — snapping them would
       // teleport them back into the middle of the stack, which is wrong.
-      if (body.position.y > spec.pos[1] + LAYOUT_H * 1.5) continue;
+      if (body.position.y > spec.pos[1] + LAYOUT_H * 3) continue;
       body.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
       body.quaternion.set(0, 0, 0, 1);
       body.velocity.set(0, 0, 0);
@@ -455,7 +455,7 @@ export function PhysicsTowerScene({
 
     const blockExtentAlongSlide =
       Math.abs(spec.slide[0]) * spec.size[0] + Math.abs(spec.slide[2]) * spec.size[2];
-    const stackThreshold = blockExtentAlongSlide + 1.0;
+    const stackThreshold = blockExtentAlongSlide + 0.3;
 
     dragRef.current = {
       specId, body,
