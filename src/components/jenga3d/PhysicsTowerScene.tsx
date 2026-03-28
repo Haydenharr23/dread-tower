@@ -323,8 +323,9 @@ export function PhysicsTowerScene({
     // block faces are nearly touching — running headless steps resolves those forces before
     // any mesh is visible.
     world.allowSleep = true;
-    world.sleepSpeedLimit = 0.1;
-    world.sleepTimeLimit  = 0.3;
+    // sleepSpeedLimit / sleepTimeLimit exist at runtime but are missing from the cannon-es type defs
+    (world as unknown as Record<string, unknown>).sleepSpeedLimit = 0.1;
+    (world as unknown as Record<string, unknown>).sleepTimeLimit  = 0.3;
     for (let i = 0; i < 150; i++) {
       world.step(1 / 60);
     }
@@ -336,11 +337,13 @@ export function PhysicsTowerScene({
       warmupBody.angularVelocity.set(0, 0, 0);
     });
     // Snap the top-3 original layers to canonical positions after any warmup drift.
+    // Skip blocks that have been auto-stacked above the tower (their Y is well above canonical).
     const warmupSpecs = buildTowerBlocks(PHYSICS_TOWER_LAYERS);
     for (const spec of warmupSpecs) {
       if (spec.level < PHYSICS_TOWER_LAYERS - 3) continue;
       const b = bodiesRef.current.get(spec.id);
       if (!b) continue;
+      if (b.position.y > spec.pos[1] + LAYOUT_H * 1.5) continue; // already relocated — leave alone
       b.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
       b.quaternion.set(0, 0, 0, 1);
       b.velocity.set(0, 0, 0);
@@ -360,6 +363,10 @@ export function PhysicsTowerScene({
       if (spec.level < minLevel) continue;
       const body = bodiesRef.current.get(spec.id);
       if (!body) continue;
+      // Skip blocks that have been pulled and auto-stacked on top of the tower.
+      // Their Y is well above the canonical tower height — snapping them would
+      // teleport them back into the middle of the stack, which is wrong.
+      if (body.position.y > spec.pos[1] + LAYOUT_H * 1.5) continue;
       body.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
       body.quaternion.set(0, 0, 0, 1);
       body.velocity.set(0, 0, 0);
@@ -689,27 +696,41 @@ export function PhysicsTowerScene({
     });
 
     // ── Game-over detection ───────────────────────────────────────────────────
-    // The tower is considered fallen when no block on the table is above 1.5 units
-    // for 90 consecutive frames (~1.5 s).  Only check once there are enough blocks.
     if (!gameOverRef.current && bodiesRef.current.size >= 3) {
-      let maxTableY = 0;
-      bodiesRef.current.forEach((body) => {
+      // Instant loss: any block OTHER than the one being dragged falls off the table.
+      // This catches accidental nudges that send a block off the edge.
+      bodiesRef.current.forEach((body, id) => {
+        if (gameOverRef.current) return;
+        if (drag && id === drag.specId) return; // ignore the block the player is holding
         const { x, y, z } = body.position;
-        // Only consider blocks still on the table area (not fallen off the edge)
-        if (y > 0 && Math.hypot(x, z) < 6) {
-          if (y > maxTableY) maxTableY = y;
-        }
-      });
-
-      if (maxTableY > 0 && maxTableY < 1.5) {
-        gameOverCountRef.current += 1;
-        if (gameOverCountRef.current >= 90) {
+        if (y < -0.42 || Math.hypot(x, z) > 3.55) {
           gameOverRef.current = true;
           gameOverCountRef.current = 0;
           setUiMode("gameover");
         }
-      } else {
-        gameOverCountRef.current = 0;
+      });
+
+      // Sustained loss: tower has fully or partially collapsed — tallest on-table
+      // block stays below 1.5 units for ~45 consecutive frames (~0.75 s).
+      if (!gameOverRef.current) {
+        let maxTableY = 0;
+        bodiesRef.current.forEach((body) => {
+          const { x, y, z } = body.position;
+          if (y > 0 && Math.hypot(x, z) < 6) {
+            if (y > maxTableY) maxTableY = y;
+          }
+        });
+
+        if (maxTableY > 0 && maxTableY < 1.5) {
+          gameOverCountRef.current += 1;
+          if (gameOverCountRef.current >= 45) {
+            gameOverRef.current = true;
+            gameOverCountRef.current = 0;
+            setUiMode("gameover");
+          }
+        } else {
+          gameOverCountRef.current = 0;
+        }
       }
     }
   });
