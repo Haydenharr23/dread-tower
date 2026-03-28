@@ -620,16 +620,16 @@ export function PhysicsTowerScene({
       raycaster.setFromCamera(mouseNDCRef.current, camera);
       const hPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -drag.initialBodyPos.y);
       const hit    = new THREE.Vector3();
-      let projected = 0;
+      let bodyProjected = 0;
 
       if (raycaster.ray.intersectPlane(hPlane, hit)) {
-        projected =
+        const projected =
           (hit.x - drag.initialPickX) * drag.slideAxis.x +
           (hit.z - drag.initialPickZ) * drag.slideAxis.z;
 
         // Direct-velocity control: set velocity = gain × error_along_slide.
         // This bypasses the friction solver entirely — no spring vs friction arms-race.
-        const bodyProjected =
+        bodyProjected =
           (drag.body.position.x - drag.initialBodyPos.x) * drag.slideAxis.x +
           (drag.body.position.z - drag.initialBodyPos.z) * drag.slideAxis.z;
         const err   = projected - bodyProjected;
@@ -640,8 +640,10 @@ export function PhysicsTowerScene({
         drag.body.angularVelocity.scale(0.5, drag.body.angularVelocity);
       }
 
-      // ── Auto-stack: pointer pulled far enough → block has cleared the tower ──
-      if (Math.abs(projected) >= drag.stackThreshold) {
+      // ── Auto-stack: block itself has physically cleared the tower ──
+      // Check bodyProjected (how far the block moved), NOT the pointer position.
+      // With the speed cap the pointer can race ahead while the block is still inside.
+      if (Math.abs(bodyProjected) >= drag.stackThreshold) {
         const spec = blocksRef.current.find((s) => s.id === drag.specId);
         if (spec) {
           const { x, z, quat } = computeStackSlot(autoStackCountRef.current, spec);
