@@ -46,6 +46,8 @@ const RESTITUTION = 0.0;
  * This bypasses cannon-es's friction solver completely — no spring vs friction arms-race.
  */
 const DRAG_VELOCITY_GAIN = 14;
+/** Maximum speed (units/s) a dragged block can travel — prevents yanking. */
+const DRAG_MAX_SPEED = 2.2;
 const ORBIT_TARGET: [number, number, number] = [0, 2.65, 0];
 const DRAG_THRESHOLD_PX = 5;
 const FIXED_STEP = 1 / 60;
@@ -631,7 +633,7 @@ export function PhysicsTowerScene({
           (drag.body.position.x - drag.initialBodyPos.x) * drag.slideAxis.x +
           (drag.body.position.z - drag.initialBodyPos.z) * drag.slideAxis.z;
         const err   = projected - bodyProjected;
-        const speed = err * DRAG_VELOCITY_GAIN;
+        const speed = Math.min(Math.abs(err * DRAG_VELOCITY_GAIN), DRAG_MAX_SPEED) * Math.sign(err);
         drag.body.velocity.x = drag.slideAxis.x * speed;
         drag.body.velocity.z = drag.slideAxis.z * speed;
         drag.body.velocity.y *= 0.8; // damp vertical bounce
