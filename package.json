@@ -12,12 +12,16 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
+    "cannon-es": "^0.20.0",
     "framer-motion": "^11.18.2",
     "lucide-react": "^0.460.0",
     "mermaid": "^11.13.0",
     "next": "^14.2.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "three": "^0.169.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

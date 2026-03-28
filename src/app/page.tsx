@@ -31,8 +31,10 @@ import {
 } from "lucide-react";
 import { AiRichText } from "@/components/AiRichText";
 import { AI_PASSKEY_STORAGE_KEY, getStoredAiPasskey } from "@/lib/aiGate";
+import Link from "next/link";
 import { FreeSoloMode } from "@/components/FreeSoloMode";
 import { FreeGmMode } from "@/components/FreeGmMode";
+import { jengaCollapseChance } from "@/data/freeSoloStories";
 
 type TranscriptEntry = { role: "players" | "gm" | "tower"; text: string };
 type SessionMode = "pick" | "solo" | "host" | "free_solo" | "free_gm";
@@ -345,7 +347,7 @@ export default function Home() {
     setPullAnimating(true);
     setError(null);
     const attemptNumber = jengaPulls + 1;
-    const collapseChance = Math.min(0.45, 0.06 + jengaPulls * 0.03);
+    const collapseChance = jengaCollapseChance(jengaPulls);
     const success = Math.random() >= collapseChance;
     const branch = success ? saved.branch.onSuccess : saved.branch.onFailure;
     setJengaPulls(attemptNumber);
@@ -477,13 +479,13 @@ export default function Home() {
           transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
         >
           <Skull className="w-10 h-10 text-blood-bright" strokeWidth={1.5} />
-          <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-wide text-blood-bright">
+          <h1 className="font-display text-5xl sm:text-6xl font-bold tracking-wide text-blood-bright">
             The Dread Tower
           </h1>
           <Moon className="w-8 h-8 text-blood-light" strokeWidth={1.5} />
         </motion.div>
         <motion.p
-          className="text-muted text-sm sm:text-base font-body flex items-center justify-center gap-2"
+          className="text-muted text-base sm:text-lg font-body flex items-center justify-center gap-2 leading-relaxed"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3 }}
@@ -501,15 +503,23 @@ export default function Home() {
             className="relative rounded-2xl border border-border bg-card/95 backdrop-blur-sm p-6 sm:p-8 shadow-2xl shadow-black/50"
           >
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blood/60 to-transparent" />
-            <h2 className="font-display text-xl sm:text-2xl font-semibold mb-2 text-blood-light text-center flex items-center justify-center gap-2">
+            <h2 className="font-display text-2xl sm:text-3xl font-semibold mb-2 text-blood-light text-center flex items-center justify-center gap-2">
               <Network className="w-6 h-6" />
               Choose mode
             </h2>
-            <p className="text-muted text-sm text-center mb-8 font-body max-w-xl mx-auto">
+            <p className="text-muted text-base text-center mb-8 font-body max-w-xl mx-auto leading-relaxed">
               Free modes need no API key. AI modes use Gemini for narration or suggestions.
             </p>
+            <p className="text-center mb-6">
+              <Link
+                href="/tower-test"
+                className="text-sm font-body text-blood-bright/90 hover:text-blood-light underline underline-offset-4 decoration-blood/40 hover:decoration-blood-light"
+              >
+                Open 3D tower lab (test pulls without a story)
+              </Link>
+            </p>
 
-            <p className="text-xs uppercase tracking-wider text-blood-bright/90 font-body mb-3 text-center">
+            <p className="text-sm uppercase tracking-wider text-blood-bright/90 font-body mb-3 text-center">
               Free modes
             </p>
             <div className="grid sm:grid-cols-2 gap-4 max-w-2xl mx-auto mb-10">
@@ -521,8 +531,8 @@ export default function Home() {
                 whileTap={{ scale: 0.98 }}
               >
                 <BookOpen className="w-8 h-8 text-blood-bright mb-3" strokeWidth={1.5} />
-                <span className="font-display text-lg font-semibold text-blood-light block mb-1">Solo Story (No AI)</span>
-                <span className="text-muted text-sm font-body">
+                <span className="font-display text-xl font-semibold text-blood-light block mb-1">Solo Story (No AI)</span>
+                <span className="text-muted text-base font-body leading-relaxed">
                   Pick a scripted story, a character, then play scene-by-scene with a tension score—no network calls.
                 </span>
               </motion.button>
@@ -534,18 +544,18 @@ export default function Home() {
                 whileTap={{ scale: 0.98 }}
               >
                 <ClipboardList className="w-8 h-8 text-blood-bright mb-3" strokeWidth={1.5} />
-                <span className="font-display text-lg font-semibold text-blood-light block mb-1">GM Tools (Manual)</span>
-                <span className="text-muted text-sm font-body">
+                <span className="font-display text-xl font-semibold text-blood-light block mb-1">GM Tools (Manual)</span>
+                <span className="text-muted text-base font-body leading-relaxed">
                   Pick a table kit—story (with tone baked in), cast, beats, and endings auto-fill; no AI. Run with scene notes and a log.
                 </span>
               </motion.button>
             </div>
 
             <div className="relative max-w-2xl mx-auto rounded-2xl border border-blood/30 bg-blood/5 p-4 sm:p-5">
-              <p className="text-xs uppercase tracking-wider text-blood-bright/90 font-body mb-1 text-center">
+              <p className="text-sm uppercase tracking-wider text-blood-bright/90 font-body mb-1 text-center">
                 AI modes
               </p>
-              <p className="text-muted text-xs text-center font-body mb-4">
+              <p className="text-muted text-sm text-center font-body mb-4">
                 Gemini-backed — locked so random visitors don’t burn your API quota. Unlock once per browser session.
               </p>
               <div
@@ -561,8 +571,8 @@ export default function Home() {
                   whileTap={aiModesUnlocked ? { scale: 0.98 } : undefined}
                 >
                   <User className="w-8 h-8 text-blood-bright mb-3" strokeWidth={1.5} />
-                  <span className="font-display text-lg font-semibold text-blood-light block mb-1">Solo (AI GM)</span>
-                  <span className="text-muted text-sm font-body">Optional character &amp; tone → AI plans and runs the full solo loop with Jenga risk.</span>
+                  <span className="font-display text-xl font-semibold text-blood-light block mb-1">Solo (AI GM)</span>
+                  <span className="text-muted text-base font-body leading-relaxed">Optional character &amp; tone → AI plans and runs the full solo loop with Jenga risk.</span>
                 </motion.button>
                 <motion.button
                   type="button"
@@ -573,8 +583,8 @@ export default function Home() {
                   whileTap={aiModesUnlocked ? { scale: 0.98 } : undefined}
                 >
                   <Mic className="w-8 h-8 text-blood-bright mb-3" strokeWidth={1.5} />
-                  <span className="font-display text-lg font-semibold text-blood-light block mb-1">Host (AI Assistant)</span>
-                  <span className="text-muted text-sm font-body">You GM at the table; AI generates setup and optional consequence suggestions.</span>
+                  <span className="font-display text-xl font-semibold text-blood-light block mb-1">Host (AI Assistant)</span>
+                  <span className="text-muted text-base font-body leading-relaxed">You GM at the table; AI generates setup and optional consequence suggestions.</span>
                 </motion.button>
               </div>
               {!aiModesUnlocked && (
@@ -612,7 +622,7 @@ export default function Home() {
                         Enter passkey
                       </h3>
                     </div>
-                    <p className="text-muted text-xs text-center font-body">
+                    <p className="text-muted text-sm text-center font-body">
                       Required to use Solo (AI) and Host (AI). Free modes stay open.
                     </p>
                     <input
@@ -680,7 +690,7 @@ export default function Home() {
         >
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blood/60 to-transparent" />
           <motion.h2
-            className="font-display text-xl sm:text-2xl font-semibold mb-1 text-blood-light flex items-center gap-2"
+            className="font-display text-2xl sm:text-3xl font-semibold mb-1 text-blood-light flex items-center gap-2"
             variants={item}
           >
             <Flame className="w-5 h-5" />
@@ -698,7 +708,7 @@ export default function Home() {
             <label className="flex items-center gap-2 font-semibold text-[#e8e8e8] mb-2 font-body">
               <BookOpen className="w-4 h-4 text-blood-bright shrink-0" />
               <span>1. Story description</span>
-              <span className="text-muted font-normal text-xs">({story.length} chars)</span>
+              <span className="text-muted font-normal text-sm">({story.length} chars)</span>
             </label>
             <textarea
               className="input-text w-full min-w-0 rounded-xl border border-border bg-input p-4 resize-y focus:ring-2 focus:ring-blood/60 focus:border-blood transition-all placeholder:text-[#6b6b6b]"
@@ -734,7 +744,7 @@ export default function Home() {
             <label className="flex items-center gap-2 font-semibold text-[#e8e8e8] mb-2 font-body">
               <Users className="w-4 h-4 text-blood-bright shrink-0" />
               <span>{sessionMode === "solo" ? "1. Character (optional)" : "2. Character sheets"}</span>
-              <span className="text-muted font-normal text-xs">({characters.length} chars)</span>
+              <span className="text-muted font-normal text-sm">({characters.length} chars)</span>
             </label>
             <textarea
               className="input-text w-full min-w-0 rounded-xl border border-border bg-input p-4 resize-y focus:ring-2 focus:ring-blood/60 focus:border-blood transition-all placeholder:text-[#6b6b6b]"
@@ -915,7 +925,7 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
             <div>
               <motion.h2
-                className="font-display text-xl sm:text-2xl font-semibold text-blood-light flex items-center gap-2"
+                className="font-display text-2xl sm:text-3xl font-semibold text-blood-light flex items-center gap-2"
                 variants={item}
               >
                 <Swords className="w-5 h-5 shrink-0" />
@@ -933,7 +943,7 @@ export default function Home() {
             </div>
             {sessionMode === "solo" && gameStarted && (
               <div className="flex flex-col items-stretch sm:items-end gap-2 shrink-0">
-                <div className="flex items-center gap-2 rounded-lg border border-blood/35 bg-blood/10 px-3 py-2 text-xs text-muted font-body">
+                <div className="flex items-center gap-2 rounded-lg border border-blood/35 bg-blood/10 px-3 py-2 text-sm text-muted font-body">
                   <Boxes className="w-4 h-4 text-blood-bright shrink-0" aria-hidden />
                   <span>
                     Tower pulls: <span className="text-[#e8e8e8] font-semibold tabular-nums">{jengaPulls}</span>
@@ -943,7 +953,7 @@ export default function Home() {
                 <motion.button
                   type="button"
                   onClick={() => setLogModalOpen(true)}
-                  className="rounded-lg border border-border bg-input/60 text-[#e0e0e0] px-3 py-2 text-xs font-semibold font-body flex items-center justify-center gap-2 hover:bg-input transition-colors"
+                  className="rounded-lg border border-border bg-input/60 text-[#e0e0e0] px-3 py-2 text-sm font-semibold font-body flex items-center justify-center gap-2 hover:bg-input transition-colors"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -980,7 +990,7 @@ export default function Home() {
           <div className="space-y-8">
             {/* 1 — Scene (primary read) */}
             <motion.div variants={item} className="space-y-2">
-              <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted font-body">
+              <div className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted font-body">
                 <ScrollText className="w-3.5 h-3.5 text-blood-bright shrink-0" />
                 {sessionMode === "solo" ? "Where you are" : "Scene"}
               </div>
@@ -1002,7 +1012,7 @@ export default function Home() {
             {/* 2 — Choices / ideas */}
             {gameStarted && choices.length > 0 && (
               <motion.div variants={item} className="space-y-2">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted font-body">
+                <div className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted font-body">
                   <Target className="w-3.5 h-3.5 text-blood-bright shrink-0" />
                   {sessionMode === "solo" ? "Paths you might take" : "Suggested directions"}
                 </div>
@@ -1026,11 +1036,11 @@ export default function Home() {
             {/* Host: progress */}
             {sessionMode === "host" && gameStarted && (
               <motion.div variants={item} className="space-y-2">
-                <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted font-body">
+                <div className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted font-body">
                   <Flag className="w-3.5 h-3.5 text-blood-bright shrink-0" />
                   Beat progress
                 </div>
-                <div className="input-text whitespace-pre-wrap rounded-xl border border-border bg-input/50 p-4 font-mono text-sm text-[#d8d8d8]">
+                <div className="input-text whitespace-pre-wrap rounded-xl border border-border bg-input/50 p-4 font-mono text-base text-[#e2e2e2] leading-relaxed">
                   {progressLines || "—"}
                 </div>
               </motion.div>
@@ -1039,13 +1049,13 @@ export default function Home() {
             {/* Host: AI suggestions */}
             {sessionMode === "host" && hostSuggestions.length > 0 && (
               <motion.div variants={item} className="rounded-xl border border-blood/30 bg-blood/10 p-4">
-                <h3 className="font-display font-semibold text-blood-light flex items-center gap-2 mb-2 text-sm">
+                <h3 className="font-display font-semibold text-blood-light flex items-center gap-2 mb-2 text-lg">
                   <Sparkles className="w-4 h-4 shrink-0" />
                   AI suggestions
                 </h3>
                 <ul className="space-y-2">
                   {hostSuggestions.map((s, i) => (
-                    <li key={i} className="input-text text-sm text-[#e4e4e4] flex gap-2">
+                    <li key={i} className="input-text text-base text-[#eaeaea] flex gap-2 leading-relaxed">
                       <span className="text-blood-bright font-semibold shrink-0">•</span>
                       <span className="min-w-0">
                         <AiRichText text={s} />
@@ -1058,7 +1068,7 @@ export default function Home() {
 
             {/* 3 — Your action */}
             <div className="border-t border-border/70 pt-8 space-y-4">
-              <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted font-body">
+              <div className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted font-body">
                 <Ghost className="w-3.5 h-3.5 text-blood-bright shrink-0" />
                 {sessionMode === "host" ? "GM log — then continue" : "Your action"}
               </div>
@@ -1153,7 +1163,7 @@ export default function Home() {
               exit={{ scale: 0.96, opacity: 0 }}
               transition={{ type: "spring", damping: 26 }}
             >
-              <h3 className="font-display text-xl text-blood-light mb-2 flex items-center gap-2">
+              <h3 className="font-display text-2xl text-blood-light mb-2 flex items-center gap-2">
                 <Boxes className="w-6 h-6 text-blood-bright shrink-0" />
                 Pull from the tower
               </h3>
@@ -1208,7 +1218,7 @@ export default function Home() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4 shrink-0">
-                <h3 className="font-display text-lg text-blood-light flex items-center gap-2">
+                <h3 className="font-display text-xl text-blood-light flex items-center gap-2">
                   <History className="w-5 h-5 text-blood-bright shrink-0" />
                   Full gameplay log
                 </h3>

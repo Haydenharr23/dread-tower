@@ -162,11 +162,11 @@ export function FreeGmMode({ onBack }: { onBack: () => void }) {
       {phase === "pick" && (
         <section className="relative rounded-2xl border border-border bg-card/95 backdrop-blur-sm p-6 sm:p-8 shadow-2xl shadow-black/50">
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blood/60 to-transparent" />
-          <h2 className="font-display text-xl sm:text-2xl font-semibold mb-2 text-blood-light flex items-center gap-2">
+          <h2 className="font-display text-2xl sm:text-3xl font-semibold mb-2 text-blood-light flex items-center gap-2">
             <Mic className="w-5 h-5" />
             GM Tools — pick a story
           </h2>
-          <p className="text-muted text-sm mb-6 font-body max-w-2xl">
+          <p className="text-muted text-base mb-6 font-body max-w-2xl leading-relaxed">
             Choose a table kit. Story description (including tone and safety notes), cast sketches, beats, and endings fill
             in automatically—no AI, no API. You can edit everything before you start.
           </p>
@@ -180,8 +180,8 @@ export function FreeGmMode({ onBack }: { onBack: () => void }) {
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
               >
-                <span className="font-display text-lg font-semibold text-blood-light block mb-1">{p.title}</span>
-                <span className="text-muted text-sm font-body">{p.blurb}</span>
+                <span className="font-display text-xl font-semibold text-blood-light block mb-1">{p.title}</span>
+                <span className="text-muted text-base font-body leading-relaxed">{p.blurb}</span>
               </motion.button>
             ))}
           </div>
@@ -194,11 +194,11 @@ export function FreeGmMode({ onBack }: { onBack: () => void }) {
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blood/60 to-transparent" />
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
               <div>
-                <h2 className="font-display text-xl sm:text-2xl font-semibold mb-1 text-blood-light flex items-center gap-2">
+                <h2 className="font-display text-2xl sm:text-3xl font-semibold mb-1 text-blood-light flex items-center gap-2">
                   <BookOpen className="w-5 h-5" />
                   {selectedPreset?.title ?? "Your story"}
                 </h2>
-                <p className="text-muted text-sm font-body">
+                <p className="text-muted text-base font-body leading-relaxed">
                   Tone and table expectations are part of the story description below—not a separate field.
                 </p>
               </div>
@@ -238,7 +238,7 @@ export function FreeGmMode({ onBack }: { onBack: () => void }) {
             </div>
 
             <div className="rounded-xl bg-blood/10 border border-blood/30 p-4 mb-8">
-              <p className="text-[#e0e0e0] text-sm font-body mb-3">
+              <p className="text-[#e8e8e8] text-base font-body mb-3 leading-relaxed">
                 Edit beats and endings if you want, then start the session when you’re ready at the table.
               </p>
               <motion.button
@@ -253,20 +253,20 @@ export function FreeGmMode({ onBack }: { onBack: () => void }) {
                 Start session
               </motion.button>
               {!canStart && (
-                <span className="text-sm text-muted ml-3">Preset should fill all fields; add text if something’s empty.</span>
+                <span className="text-base text-muted ml-3 leading-relaxed">Preset should fill all fields; add text if something’s empty.</span>
               )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-8 border-t border-border/80">
               <div>
-                <h3 className="font-display font-semibold mb-2 text-blood-light flex items-center gap-2">
+                <h3 className="font-display text-lg font-semibold mb-2 text-blood-light flex items-center gap-2">
                   <ListOrdered className="w-4 h-4" />
                   Beats
                 </h3>
                 <EditableList items={beats} onChange={setBeats} />
               </div>
               <div>
-                <h3 className="font-display font-semibold mb-2 text-blood-light flex items-center gap-2">
+                <h3 className="font-display text-lg font-semibold mb-2 text-blood-light flex items-center gap-2">
                   <Flag className="w-4 h-4" />
                   Endings
                 </h3>
@@ -277,22 +277,22 @@ export function FreeGmMode({ onBack }: { onBack: () => void }) {
 
           <section className="relative rounded-2xl border border-border bg-card/95 backdrop-blur-sm p-6 sm:p-8 lg:p-10 shadow-2xl shadow-black/50">
             <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blood/60 to-transparent" />
-            <h2 className="font-display text-xl sm:text-2xl font-semibold mb-2 text-blood-light flex items-center gap-2">
+            <h2 className="font-display text-2xl sm:text-3xl font-semibold mb-2 text-blood-light flex items-center gap-2">
               <ScrollText className="w-5 h-5" />
               GM run — scene &amp; log
             </h2>
-            <p className="text-muted text-sm mb-6 font-body">
+            <p className="text-muted text-base mb-6 font-body leading-relaxed">
               {gameStarted
                 ? "Type what the table hears/sees. Log outcomes. Tick beats when you earn them."
                 : "Start a session above to unlock this panel."}
             </p>
 
             {!gameStarted ? (
-              <p className="text-muted text-sm font-body italic">Waiting for session start…</p>
+              <p className="text-muted text-base font-body italic">Waiting for session start…</p>
             ) : (
               <div className="space-y-8">
                 <div>
-                  <div className="text-xs uppercase tracking-wider text-muted font-body mb-2">Scene (what players see)</div>
+                  <div className="text-base uppercase tracking-wider text-muted font-body mb-2">Scene (what players see)</div>
                   <textarea
                     className="input-text w-full min-w-0 rounded-xl border border-border bg-input p-4 resize-y min-h-[8rem] focus:ring-2 focus:ring-blood/60 focus:border-blood"
                     placeholder="You describe the room, the sound, the pressure…"
@@ -302,8 +302,8 @@ export function FreeGmMode({ onBack }: { onBack: () => void }) {
                 </div>
 
                 <div>
-                  <div className="text-xs uppercase tracking-wider text-muted font-body mb-2">Beat progress</div>
-                  <div className="input-text whitespace-pre-wrap rounded-xl border border-border bg-input/50 p-4 font-mono text-sm text-[#d8d8d8] mb-4">
+                  <div className="text-base uppercase tracking-wider text-muted font-body mb-2">Beat progress</div>
+                  <div className="input-text whitespace-pre-wrap rounded-xl border border-border bg-input/50 p-4 font-mono text-base text-[#e0e0e0] leading-relaxed mb-4">
                     {progressLines || "—"}
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -320,7 +320,7 @@ export function FreeGmMode({ onBack }: { onBack: () => void }) {
                             return next;
                           })
                         }
-                        className={`text-xs px-3 py-1.5 rounded-lg border font-body ${
+                        className={`text-base px-3 py-2 rounded-lg border font-body leading-snug ${
                           beatHit[i]
                             ? "border-emerald-600/60 bg-emerald-950/40 text-emerald-100"
                             : "border-border bg-input/40 text-muted hover:bg-input/60"
@@ -334,13 +334,13 @@ export function FreeGmMode({ onBack }: { onBack: () => void }) {
                 </div>
 
                 <div>
-                  <div className="text-xs uppercase tracking-wider text-muted font-body mb-2">Session log (append)</div>
+                  <div className="text-base uppercase tracking-wider text-muted font-body mb-2">Session log (append)</div>
                   {sessionLog.length > 0 && (
                     <ul className="mb-3 space-y-2 border border-border/60 rounded-xl p-3 bg-input/30 max-h-48 overflow-y-auto">
                       {sessionLog.map((line, i) => (
                         <li
                           key={i}
-                          className="text-sm text-[#d8d8d8] font-body border-b border-border/40 pb-2 last:border-0 last:pb-0"
+                          className="text-base text-[#e2e2e2] font-body border-b border-border/40 pb-2 last:border-0 last:pb-0 leading-relaxed"
                         >
                           <AiRichText text={line} />
                         </li>

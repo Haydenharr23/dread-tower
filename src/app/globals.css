@@ -2,10 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  /* Slightly larger root so rem-based Tailwind sizes read more comfortably */
+  font-size: 17px;
+}
+
+@media (min-width: 640px) {
+  html {
+    font-size: 18px;
+  }
+}
 
 body {
-  @apply m-0 bg-background text-[#f2f2f2] antialiased;
-  font-family: var(--font-cormorant), serif;
+  @apply m-0 bg-background text-[#f4f4f4] font-body leading-relaxed;
 }
 
 /* Blood red theme accents */
@@ -29,11 +38,11 @@ body {
 
 /* Readable font for inputs and long-form text */
 .input-text {
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  font-size: 1.0625rem;
-  line-height: 1.6;
+  font-family: var(--font-body-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.125rem;
+  line-height: 1.65;
   letter-spacing: 0.01em;
-  color: #f0f0f0;
+  color: #f2f2f2;
 }
 
 /* Editable list items */
@@ -41,8 +50,8 @@ li[contenteditable="true"] {
   outline: 2px dashed #b22222;
   padding: 0.35rem 0.5rem;
   border-radius: 0.5rem;
-  font-family: ui-sans-serif, system-ui, sans-serif;
-  font-size: 1rem;
-  line-height: 1.5;
-  color: #f0f0f0;
+  font-family: var(--font-body-sans), ui-sans-serif, system-ui, sans-serif;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: #f2f2f2;
 }

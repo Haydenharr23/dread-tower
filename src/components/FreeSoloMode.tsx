@@ -128,11 +128,11 @@ export function FreeSoloMode({ onBack }: { onBack: () => void }) {
       {phase === "story" && (
         <section className="relative rounded-2xl border border-border bg-card/95 backdrop-blur-sm p-6 sm:p-8 shadow-2xl shadow-black/50">
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blood/60 to-transparent" />
-          <h2 className="font-display text-xl sm:text-2xl font-semibold mb-2 text-blood-light flex items-center gap-2">
+          <h2 className="font-display text-2xl sm:text-3xl font-semibold mb-2 text-blood-light flex items-center gap-2">
             <BookOpen className="w-5 h-5" />
             Select story
           </h2>
-          <p className="text-muted text-sm mb-6 font-body">
+          <p className="text-muted text-base mb-6 font-body leading-relaxed">
             Three choices per beat. At the table, pull from a real Jenga tower when the app asks—then tap the button so the
             outcome matches the tower (no AI).
           </p>
@@ -146,8 +146,8 @@ export function FreeSoloMode({ onBack }: { onBack: () => void }) {
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.99 }}
               >
-                <span className="font-display text-lg font-semibold text-blood-light block mb-1">{s.title}</span>
-                <span className="text-muted text-sm font-body">{s.blurb}</span>
+                <span className="font-display text-xl font-semibold text-blood-light block mb-1">{s.title}</span>
+                <span className="text-muted text-base font-body leading-relaxed">{s.blurb}</span>
               </motion.button>
             ))}
           </div>
@@ -157,11 +157,11 @@ export function FreeSoloMode({ onBack }: { onBack: () => void }) {
       {phase === "character" && story && (
         <section className="relative rounded-2xl border border-border bg-card/95 backdrop-blur-sm p-6 sm:p-8 shadow-2xl shadow-black/50">
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blood/60 to-transparent" />
-          <h2 className="font-display text-xl sm:text-2xl font-semibold mb-2 text-blood-light flex items-center gap-2">
+          <h2 className="font-display text-2xl sm:text-3xl font-semibold mb-2 text-blood-light flex items-center gap-2">
             <User className="w-5 h-5" />
             Select character
           </h2>
-          <p className="text-muted text-sm mb-2 font-body">
+          <p className="text-muted text-base mb-2 font-body leading-relaxed">
             <span className="text-[#e0e0e0] font-medium">{story.title}</span> — who are you playing?
           </p>
           <div className="space-y-3 mt-6">
@@ -175,7 +175,7 @@ export function FreeSoloMode({ onBack }: { onBack: () => void }) {
                 whileTap={{ scale: 0.99 }}
               >
                 <span className="font-semibold text-blood-light block">{c.name}</span>
-                <span className="text-sm text-muted font-body">{c.tagline}</span>
+                <span className="text-base text-muted font-body leading-relaxed">{c.tagline}</span>
               </motion.button>
             ))}
           </div>
@@ -194,22 +194,22 @@ export function FreeSoloMode({ onBack }: { onBack: () => void }) {
           <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blood/60 to-transparent" />
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
             <div>
-              <h2 className="font-display text-xl font-semibold text-blood-light flex items-center gap-2">
+              <h2 className="font-display text-2xl font-semibold text-blood-light flex items-center gap-2">
                 <Swords className="w-5 h-5 shrink-0" />
                 {phase === "done" ? "Ending" : "Scene"}
               </h2>
-              <p className="text-xs text-muted font-body mt-1">
+              <p className="text-base text-muted font-body mt-1">
                 {character.name} · {story.title}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 justify-end">
-              <div className="flex items-center gap-2 rounded-lg border border-blood/35 bg-blood/10 px-3 py-2 text-xs text-muted font-body">
+              <div className="flex items-center gap-2 rounded-lg border border-blood/35 bg-blood/10 px-3 py-2 text-sm text-muted font-body">
                 <Gauge className="w-4 h-4 text-blood-bright shrink-0" aria-hidden />
                 <span>
                   Tension: <span className="text-[#e8e8e8] font-semibold tabular-nums">{score}</span>
                 </span>
               </div>
-              <div className="flex items-center gap-2 rounded-lg border border-blood/35 bg-blood/10 px-3 py-2 text-xs text-muted font-body">
+              <div className="flex items-center gap-2 rounded-lg border border-blood/35 bg-blood/10 px-3 py-2 text-sm text-muted font-body">
                 <Boxes className="w-4 h-4 text-blood-bright shrink-0" aria-hidden />
                 <span>
                   Tower pulls: <span className="text-[#e8e8e8] font-semibold tabular-nums">{jengaPulls}</span>
@@ -222,7 +222,7 @@ export function FreeSoloMode({ onBack }: { onBack: () => void }) {
             <motion.div
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`mb-6 rounded-xl border px-4 py-3 text-sm font-body ${
+              className={`mb-6 rounded-xl border px-4 py-3 text-base font-body ${
                 pullOutcome === "success"
                   ? "border-emerald-700/60 bg-emerald-950/35 text-emerald-100"
                   : "border-blood bg-blood/20 text-red-100"
@@ -243,12 +243,12 @@ export function FreeSoloMode({ onBack }: { onBack: () => void }) {
 
           {phase === "play" && scene && (
             <div className="space-y-8">
-              <div className="input-text rounded-xl border border-border bg-input/70 p-5 sm:p-6 min-h-[8rem] text-[1.05rem] leading-[1.75] text-[#efefef] shadow-inner">
+              <div className="input-text rounded-xl border border-border bg-input/70 p-5 sm:p-6 min-h-[8rem] text-lg leading-[1.75] text-[#f2f2f2] shadow-inner">
                 <AiRichText text={scene.text} />
               </div>
               {scene.choices.length > 0 ? (
                 <div className="space-y-2">
-                  <div className="text-xs uppercase tracking-wider text-muted font-body">Choose</div>
+                  <div className="text-base uppercase tracking-wider text-muted font-body">Choose</div>
                   <ul className="flex flex-col gap-2">
                     {scene.choices.map((ch, i) => (
                       <motion.li key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
@@ -259,7 +259,7 @@ export function FreeSoloMode({ onBack }: { onBack: () => void }) {
                             onChoose(ch);
                           }}
                           disabled={!!pendingPull}
-                          className="w-full text-left input-text rounded-lg border border-border/80 bg-input/35 px-4 py-3 text-[0.98rem] text-[#e8e8e8] hover:bg-input/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full text-left input-text rounded-lg border border-border/80 bg-input/35 px-4 py-3.5 text-base text-[#ececec] hover:bg-input/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed leading-relaxed"
                         >
                           <span className="text-blood-bright font-semibold mr-2">{i + 1}.</span>
                           {ch.label}
@@ -269,7 +269,7 @@ export function FreeSoloMode({ onBack }: { onBack: () => void }) {
                   </ul>
                 </div>
               ) : (
-                <p className="text-muted text-sm font-body">No choices—use Reset to replay.</p>
+                <p className="text-muted text-base font-body">No choices—use Reset to replay.</p>
               )}
             </div>
           )}
@@ -278,7 +278,7 @@ export function FreeSoloMode({ onBack }: { onBack: () => void }) {
             <div className="space-y-6">
               {pullOutcome && (
                 <div
-                  className={`rounded-xl border px-4 py-3 text-sm font-body ${
+                  className={`rounded-xl border px-4 py-3 text-base font-body ${
                     pullOutcome === "success"
                       ? "border-emerald-700/60 bg-emerald-950/35 text-emerald-100"
                       : "border-blood bg-blood/20 text-red-100"
@@ -296,10 +296,10 @@ export function FreeSoloMode({ onBack }: { onBack: () => void }) {
                   )}
                 </div>
               )}
-              <div className="input-text rounded-xl border border-blood/40 bg-blood/10 p-5 sm:p-6 text-[1.05rem] leading-[1.75] text-[#efefef] shadow-inner">
+              <div className="input-text rounded-xl border border-blood/40 bg-blood/10 p-5 sm:p-6 text-lg leading-[1.75] text-[#f2f2f2] shadow-inner">
                 <AiRichText text={endingText} />
               </div>
-              <p className="text-sm text-muted font-body">
+              <p className="text-base text-muted font-body">
                 Final tension: <span className="text-[#e8e8e8] font-semibold">{score}</span>
                 {" · "}
                 Tower pulls: <span className="text-[#e8e8e8] font-semibold">{jengaPulls}</span>
@@ -346,14 +346,14 @@ export function FreeSoloMode({ onBack }: { onBack: () => void }) {
               exit={{ scale: 0.96, opacity: 0 }}
               transition={{ type: "spring", damping: 26 }}
             >
-              <h3 className="font-display text-xl text-blood-light mb-2 flex items-center gap-2">
+              <h3 className="font-display text-2xl text-blood-light mb-2 flex items-center gap-2">
                 <Boxes className="w-6 h-6 text-blood-bright shrink-0" />
                 Pull from the tower
               </h3>
-              <p className="text-sm text-[#d4d4d4] mb-4 font-body leading-relaxed">
+              <p className="text-base text-[#dedede] mb-4 font-body leading-relaxed">
                 <AiRichText text={pendingPull.pullContext ?? pendingPull.label} />
               </p>
-              <p className="text-sm text-muted mb-6 font-body">
+              <p className="text-base text-muted mb-6 font-body leading-relaxed">
                 Pull one block from the tower with one hand at the table. If the tower collapses, use the failure outcome
                 in the story. Tap the button after you know the result.
               </p>

@@ -16,11 +16,21 @@ const config: Config = {
         "blood-light": "#a61a1a",
         "blood-bright": "#b22222",
         input: "#0f0a0a",
-        muted: "rgba(255,255,255,0.75)",
+        muted: "rgba(255,255,255,0.84)",
       },
       fontFamily: {
-        display: ["var(--font-cinzel)", "serif"],
-        body: ["var(--font-cormorant)", "serif"],
+        display: ["var(--font-cinzel)", "Georgia", "serif"],
+        body: [
+          "var(--font-body-sans)",
+          "ui-sans-serif",
+          "system-ui",
+          "Segoe UI",
+          "sans-serif",
+        ],
+      },
+      fontSize: {
+        /** Slightly larger than default Tailwind for long reading */
+        readable: ["1.125rem", { lineHeight: "1.7" }],
       },
       animation: {
         spin: "spin 0.8s linear infinite",
