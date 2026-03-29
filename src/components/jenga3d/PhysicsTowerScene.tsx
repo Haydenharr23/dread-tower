@@ -167,6 +167,8 @@ export type PhysicsTowerStatus = {
   mode: "idle" | "selected" | "dragging" | "gameover";
   blocks: number;
   selectedId: string | null;
+  /** Increments each time a block is successfully pulled and placed on top. */
+  pullCount: number;
 };
 
 type Props = {
@@ -257,9 +259,34 @@ export function PhysicsTowerScene({
   const gameOverRef      = useRef(false);
   const gameOverCountRef = useRef(0);
 
+  // ── Freeze / unfreeze other bodies ────────────────────────────────────────
+  // Assign each render so closures always see current bodiesRef contents.
+  const freezeOtherBodiesRef = useRef((_keepId: string) => {});
+  freezeOtherBodiesRef.current = (keepId: string) => {
+    bodiesRef.current.forEach((body, id) => {
+      if (id === keepId) return;
+      body.velocity.set(0, 0, 0);
+      body.angularVelocity.set(0, 0, 0);
+      body.type = CANNON.Body.STATIC;
+    });
+  };
+
+  const unfreezeAllBodiesRef = useRef(() => {});
+  unfreezeAllBodiesRef.current = () => {
+    bodiesRef.current.forEach((body) => {
+      body.type = CANNON.Body.DYNAMIC;
+      body.linearDamping  = BLOCK_LINEAR_DAMPING;
+      body.angularDamping = BLOCK_ANGULAR_DAMPING;
+      body.velocity.set(0, 0, 0);
+      body.angularVelocity.set(0, 0, 0);
+      body.wakeUp();
+    });
+  };
+
   const [hoveredId,  setHoveredId]  = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [uiMode,     setUiMode]     = useState<"idle" | "selected" | "dragging" | "gameover">("idle");
+  const [pullCount,  setPullCount]  = useState(0);
 
   // ── Build cannon world ────────────────────────────────────────────────────
   useEffect(() => {
@@ -429,6 +456,7 @@ export function PhysicsTowerScene({
     d.body.angularVelocity.set(0, 0, 0);
     d.body.linearDamping  = BLOCK_LINEAR_DAMPING;
     d.body.angularDamping = BLOCK_ANGULAR_DAMPING;
+    unfreezeAllBodiesRef.current();
     dragRef.current = null;
     setControlsLocked(false);
     selectedIdRef.current = null;
@@ -473,12 +501,16 @@ export function PhysicsTowerScene({
      _cx: number, _cy: number, _pid: number) => {}
   );
   onBlockPointerDownRef.current = (specId, body, pickX, pickZ, clientX, clientY, pointerId) => {
+    // If a different block is already selected, lock interaction to that block only
+    if (selectedIdRef.current !== null && selectedIdRef.current !== specId) return;
     if (selectedIdRef.current !== specId) {
       selectedIdRef.current = specId;
       setSelectedId(specId);
+      setHoveredId(null);
       pendingDragRef.current = null;
       setUiMode("selected");
       setControlsLocked(true);
+      freezeOtherBodiesRef.current(specId);
       return;
     }
     pendingDragRef.current = { specId, body, pickX, pickZ, clientX, clientY, pointerId };
@@ -496,6 +528,7 @@ export function PhysicsTowerScene({
         if (selectedIdRef.current !== null) {
           e.stopImmediatePropagation();
           pendingDragRef.current = null;
+          unfreezeAllBodiesRef.current();
           selectedIdRef.current = null;
           setSelectedId(null);
           setUiMode("idle");
@@ -532,7 +565,7 @@ export function PhysicsTowerScene({
       const ndc = ndcFromEvent(e);
       mouseNDCRef.current.copy(ndc);
 
-      if (!dragRef.current) {
+      if (!dragRef.current && !selectedIdRef.current) {
         const hit = pickRef.current(ndc);
         const hid = (hit?.object as THREE.Mesh | undefined)?.userData?.blockId;
         setHoveredId(typeof hid === "string" ? hid : null);
@@ -575,13 +608,14 @@ export function PhysicsTowerScene({
     setUiMode("idle");
     setHoveredId(null);
     setSelectedId(null);
+    setPullCount(0);
     setControlsLocked(false);
     const snap = () => {
       const c = controlsRef.current;
       if (!c) return;
       c.enabled = true;
       c.target.set(...ORBIT_TARGET);
-      c.object.position.set(4.0, 3.15, 5.6);
+      c.object.position.set(5.5, 4.5, 7.8);
       c.update();
     };
     snap();
@@ -590,8 +624,8 @@ export function PhysicsTowerScene({
   }, [resetNonce, removedKey, relocKey, setControlsLocked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    onStatus?.({ mode: uiMode, blocks: blocks.length, selectedId });
-  }, [uiMode, blocks.length, selectedId, onStatus]);
+    onStatus?.({ mode: uiMode, blocks: blocks.length, selectedId, pullCount });
+  }, [uiMode, blocks.length, selectedId, pullCount, onStatus]);
 
   useEffect(() => { gl.domElement.style.touchAction = "none"; }, [gl.domElement]);
 
@@ -666,7 +700,12 @@ export function PhysicsTowerScene({
           drag.body.angularDamping = BLOCK_ANGULAR_DAMPING;
 
           autoStackCountRef.current += 1;
+          // Reset game-over counter — successful pull means the tower is still standing.
+          gameOverCountRef.current = 0;
+          setPullCount((n) => n + 1);
 
+          // Unfreeze all bodies so the tower physics resumes after the pull.
+          unfreezeAllBodiesRef.current();
           // Snap the protected top-3 original layers straight after each auto-stack.
           snapTower();
         }
@@ -713,7 +752,8 @@ export function PhysicsTowerScene({
 
       // Sustained loss: tower has fully or partially collapsed — tallest on-table
       // block stays below 1.5 units for ~45 consecutive frames (~0.75 s).
-      if (!gameOverRef.current) {
+      // Don't count while a block is being dragged — sagging blocks during a pull are expected.
+      if (!gameOverRef.current && !drag) {
         let maxTableY = 0;
         bodiesRef.current.forEach((body) => {
           const { x, y, z } = body.position;
@@ -749,7 +789,7 @@ export function PhysicsTowerScene({
 
       <OrbitControls ref={controlsRef} makeDefault target={ORBIT_TARGET}
         enablePan={false} enableDamping dampingFactor={0.08}
-        minDistance={3.2} maxDistance={14}
+        minDistance={3.2} maxDistance={18}
         minPolarAngle={0.42} maxPolarAngle={Math.PI / 2 - 0.14}
         rotateSpeed={0.85} zoomSpeed={0.9}
         touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE }} />

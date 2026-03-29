@@ -34,10 +34,10 @@ import { AI_PASSKEY_STORAGE_KEY, getStoredAiPasskey } from "@/lib/aiGate";
 import Link from "next/link";
 import { FreeSoloMode } from "@/components/FreeSoloMode";
 import { FreeGmMode } from "@/components/FreeGmMode";
-import { jengaCollapseChance } from "@/data/freeSoloStories";
+import { PullMethodModal } from "@/components/jenga3d/PullMethodModal";
 
 type TranscriptEntry = { role: "players" | "gm" | "tower"; text: string };
-type SessionMode = "pick" | "solo" | "host" | "free_solo" | "free_gm";
+type SessionMode = "pick" | "ai_gm" | "host" | "free_solo" | "free_gm";
 
 /** Precomputed solo outcomes when a Jenga pull is required (one API call for both paths). */
 type PullBranchPayload = {
@@ -153,7 +153,6 @@ export default function Home() {
     branch: { onSuccess: PullBranchPayload; onFailure: PullBranchPayload };
   } | null>(null);
   const [gameOver, setGameOver] = useState(false);
-  const [pullAnimating, setPullAnimating] = useState(false);
   const [pullOutcome, setPullOutcome] = useState<"success" | "fail" | null>(null);
   const [logModalOpen, setLogModalOpen] = useState(false);
   const [aiModesUnlocked, setAiModesUnlocked] = useState(false);
@@ -172,7 +171,7 @@ export default function Home() {
 
   useEffect(() => {
     if (
-      (sessionMode === "solo" || sessionMode === "host") &&
+      (sessionMode === "ai_gm" || sessionMode === "host") &&
       !aiModesUnlocked
     ) {
       setSessionMode("pick");
@@ -180,8 +179,8 @@ export default function Home() {
   }, [sessionMode, aiModesUnlocked]);
 
   const effectiveStory =
-    sessionMode === "solo"
-      ? `Solo horror one-shot. Protagonist:\n${characters.trim()}`
+    sessionMode === "ai_gm"
+      ? [story.trim() || "Horror one-shot.", characters.trim() ? `Characters:\n${characters.trim()}` : ""].filter(Boolean).join("\n")
       : sessionMode === "host"
         ? story.trim()
         : "";
@@ -190,15 +189,16 @@ export default function Home() {
 
   const canStart = beats.length === 5 && endings.length >= 2;
 
-  const handleBeginSoloAdventure = async () => {
+  const handleBeginAdventure = async () => {
     setError(null);
     setLoading(true);
     try {
       let chars = characters.trim();
       let cons = constraints.trim();
+      const storyLine = story.trim() || "Horror one-shot.";
       const data = await callAI({
         mode: "solo_begin",
-        story: chars ? `Solo horror one-shot. Protagonist:\n${chars}` : "Solo horror one-shot.",
+        story: chars ? `${storyLine}\nCharacters:\n${chars}` : storyLine,
         characters: chars,
         constraints: cons,
       });
@@ -238,8 +238,8 @@ export default function Home() {
       setError("Add a story description and character sheets first.");
       return;
     }
-    if (sessionMode === "solo") {
-      setError("Use “Begin solo adventure” for solo mode.");
+    if (sessionMode === "ai_gm") {
+      setError('Use "Start adventure" for AI GM mode.');
       return;
     }
     setError(null);
@@ -290,7 +290,7 @@ export default function Home() {
     const text = playerInput.trim();
     if (!text || gameOver || pendingRisk) return;
     setError(null);
-    if (sessionMode === "solo") setPullOutcome(null);
+    if (sessionMode === "ai_gm") setPullOutcome(null);
     setLoading(true);
     try {
       const data = await callAI({
@@ -304,9 +304,9 @@ export default function Home() {
         endingHit,
         playerText: text,
         transcriptTail: transcript.slice(-10),
-        soloSession: sessionMode === "solo",
+        soloSession: sessionMode === "ai_gm",
       });
-      if (sessionMode === "solo" && data.requiresPull === true) {
+      if (sessionMode === "ai_gm" && data.requiresPull === true) {
         const pb = data.pullBranch as
           | { onSuccess: PullBranchPayload; onFailure: PullBranchPayload }
           | undefined;
@@ -324,7 +324,7 @@ export default function Home() {
       }
       if (Array.isArray(data.beatHit)) setBeatHit(data.beatHit);
       if (Array.isArray(data.endingHit)) setEndingHit(data.endingHit);
-      if (sessionMode === "host") setHostSuggestions([]);
+      if (sessionMode !== "ai_gm") setHostSuggestions([]);
       setTranscript((prev) => [
         ...prev,
         { role: "players", text },
@@ -341,16 +341,11 @@ export default function Home() {
     }
   };
 
-  const handleJengaPull = () => {
-    if (!pendingRisk || pullAnimating || loading) return;
+  const handlePullResult = (success: boolean) => {
+    if (!pendingRisk) return;
     const saved = pendingRisk;
-    setPullAnimating(true);
-    setError(null);
-    const attemptNumber = jengaPulls + 1;
-    const collapseChance = jengaCollapseChance(jengaPulls);
-    const success = Math.random() >= collapseChance;
     const branch = success ? saved.branch.onSuccess : saved.branch.onFailure;
-    setJengaPulls(attemptNumber);
+    setJengaPulls((j) => j + 1);
     const riskText = saved.text;
     setPendingRisk(null);
     setBeatHit(branch.beatHit);
@@ -368,7 +363,6 @@ export default function Home() {
     setSceneText(branch.sceneText);
     setChoices(Array.isArray(branch.choices) ? branch.choices : []);
     setGameOver(branch.gameOver === true || !success);
-    setPullAnimating(false);
   };
 
   const handleReset = () => window.location.reload();
@@ -387,7 +381,7 @@ export default function Home() {
         field,
         text: getter,
       };
-      const storyForEnhance = sessionMode === "solo" ? effectiveStory : story.trim();
+      const storyForEnhance = sessionMode === "ai_gm" ? effectiveStory : story.trim();
       if (field === "characters" && storyForEnhance) payload.story = storyForEnhance;
       if (field === "constraints") {
         if (storyForEnhance) payload.story = storyForEnhance;
@@ -442,7 +436,7 @@ export default function Home() {
   const setupReady =
     sessionMode === "host"
       ? !!(story.trim() && characters.trim())
-      : sessionMode === "solo";
+      : sessionMode === "ai_gm";
 
   return (
     <motion.main
@@ -556,7 +550,7 @@ export default function Home() {
                 AI modes
               </p>
               <p className="text-muted text-sm text-center font-body mb-4">
-                Gemini-backed — locked so random visitors don’t burn your API quota. Unlock once per browser session.
+                Gemini-backed — locked so random visitors don't burn your API quota. Unlock once per browser session.
               </p>
               <div
                 className={`grid sm:grid-cols-2 gap-4 ${!aiModesUnlocked ? "opacity-50 blur-[1px] pointer-events-none select-none" : ""}`}
@@ -565,14 +559,14 @@ export default function Home() {
                 <motion.button
                   type="button"
                   disabled={!aiModesUnlocked}
-                  onClick={() => setSessionMode("solo")}
+                  onClick={() => setSessionMode("ai_gm")}
                   className="rounded-2xl border border-blood/50 bg-blood/15 hover:bg-blood/25 disabled:opacity-60 p-6 text-left transition-colors"
                   whileHover={aiModesUnlocked ? { scale: 1.02 } : undefined}
                   whileTap={aiModesUnlocked ? { scale: 0.98 } : undefined}
                 >
-                  <User className="w-8 h-8 text-blood-bright mb-3" strokeWidth={1.5} />
-                  <span className="font-display text-xl font-semibold text-blood-light block mb-1">Solo (AI GM)</span>
-                  <span className="text-muted text-base font-body leading-relaxed">Optional character &amp; tone → AI plans and runs the full solo loop with Jenga risk.</span>
+                  <Users className="w-8 h-8 text-blood-bright mb-3" strokeWidth={1.5} />
+                  <span className="font-display text-xl font-semibold text-blood-light block mb-1">AI GM</span>
+                  <span className="text-muted text-base font-body leading-relaxed">One or more players with an AI game master. Add your characters and tone—or leave blank and the AI invents the cast.</span>
                 </motion.button>
                 <motion.button
                   type="button"
@@ -665,7 +659,7 @@ export default function Home() {
         <FreeGmMode onBack={() => setSessionMode("pick")} />
       )}
 
-      {(sessionMode === "solo" || sessionMode === "host") && (
+      {(sessionMode === "ai_gm" || sessionMode === "host") && (
       <motion.div
         variants={container}
         initial="hidden"
@@ -697,23 +691,23 @@ export default function Home() {
             Setup
           </motion.h2>
           <p className="text-muted text-sm mb-6 font-body">
-            {sessionMode === "solo"
-              ? "Optional: add a character and tone—or leave them blank and the AI will invent them. Beats, endings, and the opening stay hidden; you discover the story in play."
+            {sessionMode === "ai_gm"
+              ? "Optional: add player characters and a tone—or leave them blank and the AI will invent the cast. Beats, endings, and the opening stay hidden; you discover the story in play."
               : "Step 1: Add your story and characters, then generate beats."}
           </p>
 
-          {/* Story (host only) */}
-          {sessionMode === "host" && (
+          {/* Story (host and ai_gm) */}
+          {(sessionMode === "host" || sessionMode === "ai_gm") && (
           <motion.div variants={item} className="mb-6">
             <label className="flex items-center gap-2 font-semibold text-[#e8e8e8] mb-2 font-body">
               <BookOpen className="w-4 h-4 text-blood-bright shrink-0" />
-              <span>1. Story description</span>
+              <span>{sessionMode === "ai_gm" ? "1. Story (optional)" : "1. Story description"}</span>
               <span className="text-muted font-normal text-sm">({story.length} chars)</span>
             </label>
             <textarea
               className="input-text w-full min-w-0 rounded-xl border border-border bg-input p-4 resize-y focus:ring-2 focus:ring-blood/60 focus:border-blood transition-all placeholder:text-[#6b6b6b]"
               rows={5}
-              placeholder="A haunted winter lodge. Something in the walls learns your secrets..."
+              placeholder={sessionMode === "ai_gm" ? "Leave blank and the AI invents a setting, or describe one: a winter lodge, an abandoned hospital…" : "A haunted winter lodge. Something in the walls learns your secrets..."}
               value={story}
               onChange={(e) => setStory(e.target.value)}
             />
@@ -743,15 +737,15 @@ export default function Home() {
           <motion.div variants={item} className="mb-6">
             <label className="flex items-center gap-2 font-semibold text-[#e8e8e8] mb-2 font-body">
               <Users className="w-4 h-4 text-blood-bright shrink-0" />
-              <span>{sessionMode === "solo" ? "1. Character (optional)" : "2. Character sheets"}</span>
+              <span>{sessionMode === "ai_gm" ? "2. Characters (optional)" : "2. Character sheets"}</span>
               <span className="text-muted font-normal text-sm">({characters.length} chars)</span>
             </label>
             <textarea
               className="input-text w-full min-w-0 rounded-xl border border-border bg-input p-4 resize-y focus:ring-2 focus:ring-blood/60 focus:border-blood transition-all placeholder:text-[#6b6b6b]"
-              rows={sessionMode === "solo" ? 8 : 6}
+              rows={sessionMode === "ai_gm" ? 8 : 6}
               placeholder={
-                sessionMode === "solo"
-                  ? "Leave blank for a random protagonist, or write: Name, Goal, Fear, Secret…"
+                sessionMode === "ai_gm"
+                  ? "Leave blank and the AI invents a cast, or add your players:\n\nName: …  Goal: …  Fear: …  Secret: …\nName: …  Goal: …  Fear: …  Secret: …"
                   : "Name: ...\nGoal: ...\nFear: ...\nSecret: ..."
               }
               value={characters}
@@ -782,14 +776,14 @@ export default function Home() {
           <motion.div variants={item} className="mb-8">
             <label className="flex items-center gap-2 font-semibold text-[#e8e8e8] mb-2 font-body">
               <Shield className="w-4 h-4 text-blood-bright shrink-0" />
-              <span>{sessionMode === "solo" ? "2. Story tone (optional)" : "3. Constraints (optional)"}</span>
+              <span>{sessionMode === "ai_gm" ? "3. Story tone (optional)" : "3. Constraints (optional)"}</span>
             </label>
             <textarea
               className="input-text w-full min-w-0 rounded-xl border border-border bg-input p-4 resize-y focus:ring-2 focus:ring-blood/60 focus:border-blood transition-all placeholder:text-[#6b6b6b]"
               rows={3}
               placeholder={
-                sessionMode === "solo"
-                  ? "Slow dread, claustrophobic, cosmic horror..."
+                sessionMode === "ai_gm"
+                  ? "Slow dread, claustrophobic, cosmic horror…"
                   : "Tone: slow dread. No sexual violence. Keep it PG-13."
               }
               value={constraints}
@@ -863,14 +857,14 @@ export default function Home() {
           </div>
           )}
 
-          {sessionMode === "solo" && (
+          {sessionMode === "ai_gm" && (
             <div className="rounded-xl bg-blood/10 border border-blood/30 p-4 mb-6">
               <p className="text-[#e0e0e0] text-sm font-body mb-3">
                 Ready when you are—the story, beats, and endings are generated behind the scenes and stay secret until you earn them in play.
               </p>
               <motion.button
                 type="button"
-                onClick={handleBeginSoloAdventure}
+                onClick={handleBeginAdventure}
                 disabled={loading}
                 className="rounded-xl border border-blood bg-blood text-white px-5 py-2.5 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
                 whileHover={{ scale: 1.03 }}
@@ -881,7 +875,7 @@ export default function Home() {
                 ) : (
                   <>
                     <Play className="w-4 h-4" />
-                    Begin solo adventure
+                    Start adventure
                   </>
                 )}
               </motion.button>
@@ -935,13 +929,13 @@ export default function Home() {
                 {gameStarted
                   ? sessionMode === "host"
                     ? "Read the scene, then log what happened and advance when ready."
-                    : "Read the scene, then say what your character does. Risky actions may ask for a tower pull."
+                    : "Read the scene, then say what your characters do. Risky actions may ask for a tower pull."
                   : sessionMode === "host"
                     ? "After you start the game, the scene and choices appear here."
-                    : "After you begin, a short opening (two paragraphs) lands here—place, stakes, and what’s wrong."}
+                    : "After you begin, a short opening lands here—place, stakes, and what's wrong."}
               </p>
             </div>
-            {sessionMode === "solo" && gameStarted && (
+            {sessionMode === "ai_gm" && gameStarted && (
               <div className="flex flex-col items-stretch sm:items-end gap-2 shrink-0">
                 <div className="flex items-center gap-2 rounded-lg border border-blood/35 bg-blood/10 px-3 py-2 text-sm text-muted font-body">
                   <Boxes className="w-4 h-4 text-blood-bright shrink-0" aria-hidden />
@@ -964,7 +958,7 @@ export default function Home() {
             )}
           </div>
 
-          {sessionMode === "solo" && gameStarted && pullOutcome && (
+          {sessionMode === "ai_gm" && gameStarted && pullOutcome && (
             <motion.div
               initial={{ opacity: 0, y: -6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -977,7 +971,7 @@ export default function Home() {
             >
               {pullOutcome === "success" ? (
                 <span>
-                  <strong className="font-semibold">Pull succeeded.</strong> The tower still stands—your action goes through.
+                  <strong className="font-semibold">Pull succeeded.</strong> The tower still stands—the action goes through.
                 </span>
               ) : (
                 <span>
@@ -992,7 +986,7 @@ export default function Home() {
             <motion.div variants={item} className="space-y-2">
               <div className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted font-body">
                 <ScrollText className="w-3.5 h-3.5 text-blood-bright shrink-0" />
-                {sessionMode === "solo" ? "Where you are" : "Scene"}
+                {sessionMode === "ai_gm" ? "Where you are" : "Scene"}
               </div>
               <div
                 className={`input-text rounded-xl border border-border bg-input/70 p-5 sm:p-6 min-h-[10rem] text-[1.05rem] leading-[1.75] text-[#efefef] shadow-inner ${
@@ -1014,7 +1008,7 @@ export default function Home() {
               <motion.div variants={item} className="space-y-2">
                 <div className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted font-body">
                   <Target className="w-3.5 h-3.5 text-blood-bright shrink-0" />
-                  {sessionMode === "solo" ? "Paths you might take" : "Suggested directions"}
+                  {sessionMode === "ai_gm" ? "Paths you might take" : "Suggested directions"}
                 </div>
                 <ul className="flex flex-col gap-2">
                   {choices.map((c, i) => (
@@ -1070,10 +1064,10 @@ export default function Home() {
             <div className="border-t border-border/70 pt-8 space-y-4">
               <div className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted font-body">
                 <Ghost className="w-3.5 h-3.5 text-blood-bright shrink-0" />
-                {sessionMode === "host" ? "GM log — then continue" : "Your action"}
+                {sessionMode === "host" ? "GM log — then continue" : "Your action(s)"}
               </div>
               <label className="sr-only" htmlFor="player-action">
-                {sessionMode === "host" ? "GM log" : "Describe your action"}
+                {sessionMode === "host" ? "GM log" : "Describe your characters' actions"}
               </label>
               <textarea
                 id="player-action"
@@ -1082,7 +1076,7 @@ export default function Home() {
                 placeholder={
                   sessionMode === "host"
                     ? "What happened at the table this beat? (Then use Continue for the next AI scene.)"
-                    : "Describe what your character says, does, or focuses on—be specific."
+                    : "Describe what your characters say, do, or focus on—be specific."
                 }
                 value={playerInput}
                 onChange={(e) => setPlayerInput(e.target.value)}
@@ -1149,59 +1143,17 @@ export default function Home() {
       )}
 
       <AnimatePresence>
-        {pendingRisk && sessionMode === "solo" && (
-          <motion.div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="max-w-md w-full rounded-2xl border border-blood/60 bg-card/98 p-6 sm:p-8 shadow-2xl shadow-black/80"
-              initial={{ scale: 0.94, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.96, opacity: 0 }}
-              transition={{ type: "spring", damping: 26 }}
-            >
-              <h3 className="font-display text-2xl text-blood-light mb-2 flex items-center gap-2">
-                <Boxes className="w-6 h-6 text-blood-bright shrink-0" />
-                Pull from the tower
-              </h3>
-              {pendingRisk.context ? (
-                <p className="text-sm text-[#d4d4d4] mb-4 font-body leading-relaxed">
-                  <AiRichText text={pendingRisk.context} />
-                </p>
-              ) : null}
-              <p className="text-sm text-muted mb-6 font-body">
-                Pull one block from the tower with one hand. If the tower collapses, this risky action fails—and your character may die.
-              </p>
-              <motion.button
-                type="button"
-                onClick={handleJengaPull}
-                disabled={pullAnimating || loading}
-                className="w-full rounded-xl border border-blood bg-blood text-white py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
-                whileHover={{ scale: pullAnimating || loading ? 1 : 1.02 }}
-                whileTap={{ scale: pullAnimating || loading ? 1 : 0.98 }}
-              >
-                {pullAnimating || loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Resolving…
-                  </>
-                ) : (
-                  <>
-                    <Target className="w-5 h-5" />
-                    Pull a block
-                  </>
-                )}
-              </motion.button>
-            </motion.div>
-          </motion.div>
+        {pendingRisk && sessionMode === "ai_gm" && (
+          <PullMethodModal
+            context={pendingRisk.context}
+            jengaPulls={jengaPulls}
+            onResult={handlePullResult}
+          />
         )}
       </AnimatePresence>
 
       <AnimatePresence>
-        {logModalOpen && sessionMode === "solo" && (
+        {logModalOpen && sessionMode === "ai_gm" && (
           <motion.div
             className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
             initial={{ opacity: 0 }}
@@ -1238,7 +1190,7 @@ export default function Home() {
                     <div key={i} className="border-b border-border/50 pb-4 last:border-0 last:pb-0">
                       <div className="text-[0.7rem] uppercase tracking-wider text-blood-bright/90 font-body mb-1.5">
                         {entry.role === "players"
-                          ? "You"
+                          ? "Players"
                           : entry.role === "tower"
                             ? "Tower"
                             : "Story"}

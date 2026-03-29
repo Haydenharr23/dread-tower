@@ -361,24 +361,24 @@ Rules:
     }
 
     const soloOpeningRules = `
-SOLO SESSION — OPENING SCENE (sceneText):
+OPENING SCENE (sceneText):
 - First in-world moment. Do NOT list beats/endings or GM meta. Never quote beat/ending titles as a list.
 - LENGTH: **At most two paragraphs**, separated by one blank line (\\n\\n). Never a third paragraph. Target about **120–220 words total**—prefer the tight end of that range.
 - STYLE: **Dense and explanatory**: more information per sentence, fewer filler words. Favor concrete nouns/verbs. No bullet lists in sceneText—prose only.
 - VOICE (important): **Understated and matter-of-fact.** Avoid melodrama, purple prose, and theatrical lines. Sound like a calm narrator, not a movie trailer.
-- Cover: where, when if it matters, why they're here (from character), what's wrong or urgent now (one hook), then stop—do not resolve the horror.
-- choices: 3–5 short, actionable next moves.
+- Narrate for the group of players (one or more). If multiple characters are present, address the group. Cover: where, when if it matters, why the group is here, what's wrong or urgent now (one hook), then stop—do not resolve the horror.
+- choices: 3–5 short, actionable next moves (any character can lead).
 `;
 
-    const system = `You are an expert horror GM assistant AND a solo Dread-style horror GM. Return ONLY valid JSON. All stories are horror-themed.
+    const system = `You are an expert horror GM assistant running a Dread-style horror one-shot for one or more players. Return ONLY valid JSON. All stories are horror-themed.
 
 PART 1 — PLAN:
-- Create exactly 5 beats and 2-3 endings that fit the story and character. Each beat and ending must be a single line (no newlines inside strings). Escape double-quotes inside strings with backslash (\\\\").
-- If characterSheets is empty or whitespace, invent "filledCharacters" (Name, Goal, Fear, Secret; concise) and use it for beats/endings. If the user already provided characterSheets, set "filledCharacters" to null.
+- Create exactly 5 beats and 2-3 endings that fit the story and characters. Each beat and ending must be a single line (no newlines inside strings). Escape double-quotes inside strings with backslash (\\\\").
+- If characterSheets is empty or whitespace, invent "filledCharacters" with 2–3 pre-gen player characters (Name, Goal, Fear, Secret for each; concise, one character per line) and use them for beats/endings. If the user already provided characterSheets, set "filledCharacters" to null.
 - If constraints is empty or whitespace, invent "filledConstraints" (one line, tone/safety). If the user already provided constraints, set "filledConstraints" to null.
 
 PART 2 — OPENING (same JSON response):
-- sceneText and choices follow the SOLO OPENING rules below.
+- sceneText and choices follow the OPENING rules below.
 - Plain prose only—never markdown (no **, _, #).
 
 ${soloOpeningRules}
@@ -434,8 +434,8 @@ Return shape: {
       if (soloSession) {
         return NextResponse.json({
           sceneText:
-            "Blackthorn Lodge, late winter, near dark. You’re on the porch because a letter asked you to come back about the night the place closed. The door is open a crack; inside, the air is warm and stale. A lantern on the desk flickers over a guestbook—names stop halfway down the page. Nobody answers when you call.\n\n" +
-            "The fire’s been used recently. Ash in the hearth. Then a slow scrape of wood somewhere deeper in the building, then nothing. You’re still on the threshold.",
+            "Blackthorn Lodge, late winter, near dark. You're on the porch because a letter asked you to come back about the night the place closed. The door is open a crack; inside, the air is warm and stale. A lantern on the desk flickers over a guestbook—names stop halfway down the page. Nobody answers when you call.\n\n" +
+            "The fire's been used recently. Ash in the hearth. Then a slow scrape of wood somewhere deeper in the building, then nothing. You're still on the threshold.",
           choices: [
             "Call out for the caretaker and stay in the light of the desk.",
             "Shut the front door behind you and search the ground floor.",
@@ -457,21 +457,21 @@ Return shape: {
     }
     const soloRules = soloSession
       ? `
-SOLO SESSION — OPENING SCENE (sceneText):
-- First in-world moment. Do NOT list beats/endings or GM meta. Never quote beat/ending titles as a list.
+OPENING SCENE (sceneText):
+- First in-world moment for the group. Do NOT list beats/endings or GM meta. Never quote beat/ending titles as a list.
 - LENGTH: **At most two paragraphs**, separated by one blank line (\\n\\n). Never a third paragraph. Target about **120–220 words total**—prefer the tight end of that range.
 - STYLE: **Dense and explanatory**: more information per sentence, fewer filler words. Favor concrete nouns/verbs. No bullet lists in sceneText—prose only.
-- VOICE (important): **Understated and matter-of-fact.** Avoid melodrama, purple prose, and theatrical lines (e.g. “the silence is waiting,” “the wind has teeth,” “half-buried alive”). Sound like a calm narrator, not a movie trailer. Horror comes from situation and detail, not from hyping every sentence.
-- Still cover efficiently in those two paragraphs: **where** (place + sensory anchors), **when** (only if it matters), **why they’re here** (stakes from character sheet), **what’s wrong or urgent now** (one clear hook), then stop—do not resolve the horror.
-- choices: 3–5 short, actionable next moves.
+- VOICE (important): **Understated and matter-of-fact.** Avoid melodrama, purple prose, and theatrical lines. Sound like a calm narrator, not a movie trailer. Horror comes from situation and detail, not from hyping every sentence.
+- Narrate for the group (one or more players). Cover: **where** (place + sensory anchors), **when** (only if it matters), **why the group is here** (stakes from characters), **what's wrong or urgent now** (one clear hook), then stop—do not resolve the horror.
+- choices: 3–5 short, actionable next moves (any character can lead).
 `
       : "";
     const system = `You are an AI GM for a Dread-style horror one-shot. All stories are horror-themed. Return ONLY valid JSON.
-Respect the story, characters, and constraints. Steer toward the given beats/endings over time. ${soloSession ? "Keep tension low-key and grounded—avoid theatrical or overwrought narration." : "Maintain dread and horror tone."}
+Respect the story, characters, and constraints. Steer toward the given beats/endings over time. ${soloSession ? "Narrate for the group of players. Keep tension low-key and grounded—avoid theatrical or overwrought narration." : "Maintain dread and horror tone."}
 In sceneText and choices, use plain prose only—never markdown (no **, _, #, or markdown bullets).
 ${soloRules}
 Return shape: { "sceneText": string, "choices": [3-5 strings] }
-${soloSession ? "Follow the SOLO SESSION rules above for sceneText." : "Write the opening scene: establish tone, hook, and immediate pressure."}`;
+${soloSession ? "Follow the OPENING SCENE rules above for sceneText." : "Write the opening scene: establish tone, hook, and immediate pressure."}`;
     const user = JSON.stringify({
       story: body.story,
       characters: body.characters,
@@ -623,11 +623,12 @@ ${soloSession ? "Follow the SOLO SESSION rules above for sceneText." : "Write th
 
     const immutableSolo = soloSession
       ? `
-SOLO / DREAD TOWER:
+AI GM / DREAD TOWER:
 - The beats[] and endings[] arrays are FIXED. Never invent new beats or endings; never change their wording. Only update beatHit and endingHit to reflect progress.
-- Do not reveal beats or endings as a list to the player in sceneText.
-- Endings only become true in endingHit when narratively appropriate; if the character dies (e.g. failed Jenga), set exactly one endingHit true—prefer an ending that matches death/loss if present.
-- VOICE: Understated, matter-of-fact narration. Avoid melodrama and purple prose. Plain sentences, concrete detail—same as solo opening rules.
+- Do not reveal beats or endings as a list to the players in sceneText.
+- Narrate for the whole group (one or more players). If multiple characters are mentioned, address them collectively.
+- Endings only become true in endingHit when narratively appropriate; if a character dies or the group fails (e.g. failed Jenga), set exactly one endingHit true—prefer an ending that matches death/loss if present.
+- VOICE: Understated, matter-of-fact narration. Avoid melodrama and purple prose. Plain sentences, concrete detail.
 `
       : "";
 
@@ -639,10 +640,10 @@ SOLO / DREAD TOWER:
     }
 
     if (soloSession && !resolvePull) {
-      const system = `You are an AI GM for a solo Dread-style horror one-shot. Return ONLY valid JSON.
+      const system = `You are an AI GM for a Dread-style horror one-shot for one or more players. Return ONLY valid JSON.
 ${immutableSolo}
 In sceneText, choices, pullContext, and pullBranch fields, plain prose only—never markdown (no **, _, #).
-First decide if the player's action is RISKY (physical danger, confrontation, tight escape, deception under pressure, reading forbidden text fast, etc.)—anything where failure could mean injury or death. If risky, they must pull from the Jenga tower before you resolve the action—but you must still write BOTH outcomes in this same response (no second API call).
+First decide if the players' action is RISKY (physical danger, confrontation, tight escape, deception under pressure, reading forbidden text fast, etc.)—anything where failure could mean injury or serious loss. If risky, they must pull from the Jenga tower before you resolve the action—but you must still write BOTH outcomes in this same response (no second API call).
 
 Return shape: { "requiresPull": boolean, "pullContext": string, "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "pullBranch"?: { "onSuccess": { "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "gameOver": boolean }, "onFailure": { "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "gameOver": boolean } } }
 
