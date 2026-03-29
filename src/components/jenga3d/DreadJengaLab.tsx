@@ -50,6 +50,7 @@ export function DreadJengaLab() {
     mode: "idle",
     blocks: PHYSICS_BLOCK_COUNT - (loadTowerLabState()?.removedIds.length ?? 0),
     selectedId: null,
+    pullCount: 0,
   }));
 
   const onStatus = useCallback((s: PhysicsTowerStatus) => setStatus(s), []);
@@ -128,7 +129,7 @@ export function DreadJengaLab() {
             resize={{ scroll: true, debounce: { scroll: 80, resize: 40 } }}
             eventPrefix="client"
             gl={{ antialias: true, alpha: true, premultipliedAlpha: false }}
-            camera={{ position: [4.0, 3.15, 5.6], fov: 44, near: 0.1, far: 80 }}
+            camera={{ position: [5.5, 4.5, 7.8], fov: 44, near: 0.1, far: 80 }}
             onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
           >
             <Suspense fallback={null}>
