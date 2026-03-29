@@ -79,7 +79,7 @@ export function computeBlocksDestiny(
   const relocated: RelocatedBlock[] = [];
 
   const MIN_Y = -0.42;
-  const MAX_R = 3.55;
+  const MAX_R = 2.9;
 
   // Highest canonical block top surface = top of the original tower.
   // Only blocks that settled ABOVE this line are saved as relocated (auto-stacked on top).

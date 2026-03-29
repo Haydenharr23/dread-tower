@@ -71,8 +71,8 @@ export function DreadJengaLab() {
               Tower lab
             </h1>
             <p className="text-muted text-base font-body leading-relaxed">
-              Click a block to select, then drag to pull it out. Pull far enough and it
-              snaps to the top. Orbit / zoom with empty space.
+              Tap a block to select, tap again and drag to pull it out. Pull past the
+              red edge and it snaps to the top. Two fingers to orbit / zoom.
             </p>
           </div>
         </div>
@@ -95,7 +95,7 @@ export function DreadJengaLab() {
       </header>
 
       <div className="flex flex-1 flex-col lg:flex-row min-h-0 overflow-hidden">
-        <div className="relative isolate flex min-h-[min(62dvh,720px)] w-full flex-1 lg:min-h-0">
+        <div className="relative isolate flex min-h-[min(62dvh,720px)] w-full flex-1 lg:min-h-0" style={{ touchAction: "none" }}>
           <div
             className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat pointer-events-none"
             style={{ backgroundImage: FOREST_BG }}
@@ -164,10 +164,10 @@ export function DreadJengaLab() {
           <div className="rounded-xl border border-border bg-input/30 p-4 space-y-2">
             <p className="text-xs uppercase tracking-wider text-blood-bright/90">How to play</p>
             <ul className="text-sm text-muted list-disc list-inside space-y-1.5 leading-relaxed">
-              <li>First click selects a block (red outline).</li>
-              <li>Click again and drag to pull it out.</li>
-              <li>Pull far enough — it teleports to the top layer.</li>
-              <li>Drag empty space to orbit; scroll to zoom.</li>
+              <li>Tap a block to select it (red outline).</li>
+              <li>Tap again and drag to pull it out.</li>
+              <li>Pull past the red table edge — it snaps to the top.</li>
+              <li>Two fingers to orbit; pinch to zoom.</li>
             </ul>
           </div>
 

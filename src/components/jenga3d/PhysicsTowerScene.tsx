@@ -338,11 +338,10 @@ export function PhysicsTowerScene({
       warmupBody.velocity.set(0, 0, 0);
       warmupBody.angularVelocity.set(0, 0, 0);
     });
-    // Snap the top-3 original layers to canonical positions after any warmup drift.
+    // Snap all original tower blocks to canonical positions after warmup drift.
     // Skip blocks that have been auto-stacked above the tower (their Y is well above canonical).
     const warmupSpecs = buildTowerBlocks(PHYSICS_TOWER_LAYERS);
     for (const spec of warmupSpecs) {
-      if (spec.level < PHYSICS_TOWER_LAYERS - 3) continue;
       const b = bodiesRef.current.get(spec.id);
       if (!b) continue;
       if (b.position.y > spec.pos[1] + LAYOUT_H * 3) continue; // already relocated — leave alone
@@ -356,18 +355,16 @@ export function PhysicsTowerScene({
     return () => { worldRef.current = null; bodiesRef.current.clear(); };
   }, [resetNonce, removedKey, relocKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Snap the protected top-3 original layers to canonical positions ───────
-  // Called after every auto-stack and on world build to keep the crown straight.
-  const snapTopLayers = useCallback(() => {
-    const allSpecs   = buildTowerBlocks(PHYSICS_TOWER_LAYERS);
-    const minLevel   = PHYSICS_TOWER_LAYERS - 3;
+  // ── Snap all original tower blocks to canonical positions ─────────────────
+  // Called after every auto-stack and on world build/re-entry.
+  // Skips blocks that have been pulled and relocated above the tower top.
+  const snapTower = useCallback(() => {
+    const allSpecs = buildTowerBlocks(PHYSICS_TOWER_LAYERS);
     for (const spec of allSpecs) {
-      if (spec.level < minLevel) continue;
       const body = bodiesRef.current.get(spec.id);
       if (!body) continue;
-      // Skip blocks that have been pulled and auto-stacked on top of the tower.
-      // Their Y is well above the canonical tower height — snapping them would
-      // teleport them back into the middle of the stack, which is wrong.
+      // Skip blocks that have been auto-stacked above the original tower —
+      // their Y is well above their canonical position.
       if (body.position.y > spec.pos[1] + LAYOUT_H * 3) continue;
       body.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
       body.quaternion.set(0, 0, 0, 1);
@@ -379,8 +376,8 @@ export function PhysicsTowerScene({
   // Snap on each world (re)build so the tower starts straight.
   useEffect(() => {
     if (!worldRef.current) return;
-    snapTopLayers();
-  }, [resetNonce, removedKey, relocKey, snapTopLayers]);
+    snapTower();
+  }, [resetNonce, removedKey, relocKey, snapTower]);
 
   // ── Persist on unmount / navigate away ───────────────────────────────────
   useEffect(() => {
@@ -654,7 +651,7 @@ export function PhysicsTowerScene({
           bodiesRef.current.forEach((body, id) => {
             if (id !== drag.specId &&
                 body.position.y > 0.3 &&
-                Math.hypot(body.position.x, body.position.z) < 2.5) {
+                Math.hypot(body.position.x, body.position.z) < 2.4) {
               const surf = body.position.y + LAYOUT_H / 2;
               if (surf > towerTopSurface) towerTopSurface = surf;
             }
@@ -671,7 +668,7 @@ export function PhysicsTowerScene({
           autoStackCountRef.current += 1;
 
           // Snap the protected top-3 original layers straight after each auto-stack.
-          snapTopLayers();
+          snapTower();
         }
 
         try { gl.domElement.releasePointerCapture(drag.pointerId); } catch { /* ignore */ }
@@ -707,7 +704,7 @@ export function PhysicsTowerScene({
         if (gameOverRef.current) return;
         if (drag && id === drag.specId) return; // ignore the block the player is holding
         const { x, y, z } = body.position;
-        if (y < -0.42 || Math.hypot(x, z) > 3.55) {
+        if (y < -0.42 || Math.hypot(x, z) > 2.9) {
           gameOverRef.current = true;
           gameOverCountRef.current = 0;
           setUiMode("gameover");
@@ -754,12 +751,38 @@ export function PhysicsTowerScene({
         enablePan={false} enableDamping dampingFactor={0.08}
         minDistance={3.2} maxDistance={14}
         minPolarAngle={0.42} maxPolarAngle={Math.PI / 2 - 0.14}
-        rotateSpeed={0.85} zoomSpeed={0.9} />
+        rotateSpeed={0.85} zoomSpeed={0.9}
+        touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_ROTATE }} />
 
+      {/* Table surface — slightly smaller so the glowing edge is obviously reachable */}
       <mesh position={[0, -0.07, 0]} receiveShadow>
-        <boxGeometry args={[7.2, 0.14, 7.2]} />
+        <boxGeometry args={[5.6, 0.14, 5.6]} />
         <meshStandardMaterial color="#1a1512" roughness={0.92} metalness={0.05}
           emissive="#200808" emissiveIntensity={0.06} />
+      </mesh>
+
+      {/* Glowing border strips around the table top — visual cue: pull the block past this edge */}
+      {/* Along +Z and -Z edges */}
+      <mesh position={[0, 0.01, 2.76]} renderOrder={2}>
+        <boxGeometry args={[5.6, 0.05, 0.08]} />
+        <meshStandardMaterial color="#cc1515" emissive="#ff2020" emissiveIntensity={1.2}
+          toneMapped={false} />
+      </mesh>
+      <mesh position={[0, 0.01, -2.76]} renderOrder={2}>
+        <boxGeometry args={[5.6, 0.05, 0.08]} />
+        <meshStandardMaterial color="#cc1515" emissive="#ff2020" emissiveIntensity={1.2}
+          toneMapped={false} />
+      </mesh>
+      {/* Along +X and -X edges */}
+      <mesh position={[2.76, 0.01, 0]} renderOrder={2}>
+        <boxGeometry args={[0.08, 0.05, 5.6]} />
+        <meshStandardMaterial color="#cc1515" emissive="#ff2020" emissiveIntensity={1.2}
+          toneMapped={false} />
+      </mesh>
+      <mesh position={[-2.76, 0.01, 0]} renderOrder={2}>
+        <boxGeometry args={[0.08, 0.05, 5.6]} />
+        <meshStandardMaterial color="#cc1515" emissive="#ff2020" emissiveIntensity={1.2}
+          toneMapped={false} />
       </mesh>
 
       {blocks.map((spec) => (
