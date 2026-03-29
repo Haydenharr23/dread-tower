@@ -2,10 +2,10 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, User, Swords, Gauge, RotateCcw, Boxes, Target, Loader2 } from "lucide-react";
+import { BookOpen, User, Swords, Gauge, RotateCcw, Boxes } from "lucide-react";
+import { PullMethodModal } from "@/components/jenga3d/PullMethodModal";
 import {
   FREE_SOLO_STORIES,
-  jengaCollapseChance,
   resolveFreeSoloChoice,
   type FreeSoloStory,
   type FreeSoloChoice,
@@ -24,7 +24,6 @@ export function FreeSoloMode({ onBack }: { onBack: () => void }) {
   const [endingText, setEndingText] = useState<string | null>(null);
   const [jengaPulls, setJengaPulls] = useState(0);
   const [pendingPull, setPendingPull] = useState<FreeSoloChoice | null>(null);
-  const [pullAnimating, setPullAnimating] = useState(false);
   const [pullOutcome, setPullOutcome] = useState<"success" | "fail" | null>(null);
 
   const story = useMemo(
@@ -66,7 +65,6 @@ export function FreeSoloMode({ onBack }: { onBack: () => void }) {
     setEndingText(null);
     setJengaPulls(0);
     setPendingPull(null);
-    setPullAnimating(false);
     setPullOutcome(null);
   };
 
@@ -95,18 +93,14 @@ export function FreeSoloMode({ onBack }: { onBack: () => void }) {
     applyOutcome(resolveFreeSoloChoice(ch, true));
   };
 
-  const handleJengaPull = () => {
-    if (!pendingPull || pullAnimating) return;
-    setPullAnimating(true);
-    const attemptNumber = jengaPulls + 1;
-    const collapseChance = jengaCollapseChance(jengaPulls);
-    const success = Math.random() >= collapseChance;
-    setJengaPulls(attemptNumber);
-    const out = resolveFreeSoloChoice(pendingPull, success);
+  const handlePullResult = (success: boolean) => {
+    if (!pendingPull) return;
+    const saved = pendingPull;
+    setJengaPulls((j) => j + 1);
+    const out = resolveFreeSoloChoice(saved, success);
     setPullOutcome(success ? "success" : "fail");
     setPendingPull(null);
     applyOutcome(out);
-    setPullAnimating(false);
   };
 
   return (
@@ -333,52 +327,11 @@ export function FreeSoloMode({ onBack }: { onBack: () => void }) {
 
       <AnimatePresence>
         {pendingPull && (
-          <motion.div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.div
-              className="max-w-md w-full rounded-2xl border border-blood/60 bg-card/98 p-6 sm:p-8 shadow-2xl shadow-black/80"
-              initial={{ scale: 0.94, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.96, opacity: 0 }}
-              transition={{ type: "spring", damping: 26 }}
-            >
-              <h3 className="font-display text-2xl text-blood-light mb-2 flex items-center gap-2">
-                <Boxes className="w-6 h-6 text-blood-bright shrink-0" />
-                Pull from the tower
-              </h3>
-              <p className="text-base text-[#dedede] mb-4 font-body leading-relaxed">
-                <AiRichText text={pendingPull.pullContext ?? pendingPull.label} />
-              </p>
-              <p className="text-base text-muted mb-6 font-body leading-relaxed">
-                Pull one block from the tower with one hand at the table. If the tower collapses, use the failure outcome
-                in the story. Tap the button after you know the result.
-              </p>
-              <motion.button
-                type="button"
-                onClick={handleJengaPull}
-                disabled={pullAnimating}
-                className="w-full rounded-xl border border-blood bg-blood text-white py-3 font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
-                whileHover={{ scale: pullAnimating ? 1 : 1.02 }}
-                whileTap={{ scale: pullAnimating ? 1 : 0.98 }}
-              >
-                {pullAnimating ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Resolving…
-                  </>
-                ) : (
-                  <>
-                    <Target className="w-5 h-5" />
-                    Pull a block
-                  </>
-                )}
-              </motion.button>
-            </motion.div>
-          </motion.div>
+          <PullMethodModal
+            context={pendingPull.pullContext ?? pendingPull.label}
+            jengaPulls={jengaPulls}
+            onResult={handlePullResult}
+          />
         )}
       </AnimatePresence>
     </motion.div>
