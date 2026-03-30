@@ -313,13 +313,20 @@ Rules:
     let characterSheets = String(body.characters ?? "").trim();
     let constraintsText = String(body.constraints ?? "").trim();
     let storyDescription = String(body.story ?? "").trim();
+    const playerCount = typeof body.playerCount === "number" && body.playerCount >= 1 ? Math.round(body.playerCount) : 1;
     let filledCharacters: string | undefined;
     let filledConstraints: string | undefined;
 
     if (useStub) {
       if (!characterSheets) {
-        characterSheets =
-          "Name: Morgan Vale\nGoal: Learn what happened the night the lodge closed.\nFear: Small enclosed spaces.\nSecret: They ignored a warning sign last winter.";
+        if (playerCount === 1) {
+          characterSheets =
+            "Name: Morgan Vale\nGoal: Learn what happened the night the lodge closed.\nFear: Small enclosed spaces.\nSecret: They ignored a warning sign last winter.";
+        } else {
+          characterSheets =
+            "Name: Morgan Vale\nGoal: Learn what happened the night the lodge closed.\nFear: Small enclosed spaces.\nSecret: They ignored a warning sign last winter.\n\n" +
+            "Name: Devin Cross\nGoal: Prove there's a rational explanation.\nFear: Losing control.\nSecret: Already heard strange noises the week before.";
+        }
         filledCharacters = characterSheets;
       }
       if (!constraintsText) {
@@ -327,7 +334,7 @@ Rules:
         filledConstraints = constraintsText;
       }
       if (!storyDescription.trim()) {
-        storyDescription = `Solo horror one-shot. Protagonist:\n${characterSheets}`;
+        storyDescription = `Horror one-shot. ${playerCount === 1 ? "Protagonist" : "Players"}:\n${characterSheets}`;
       }
       return NextResponse.json({
         beats: [
@@ -366,15 +373,16 @@ OPENING SCENE (sceneText):
 - LENGTH: **At most two paragraphs**, separated by one blank line (\\n\\n). Never a third paragraph. Target about **120–220 words total**—prefer the tight end of that range.
 - STYLE: **Dense and explanatory**: more information per sentence, fewer filler words. Favor concrete nouns/verbs. No bullet lists in sceneText—prose only.
 - VOICE (important): **Understated and matter-of-fact.** Avoid melodrama, purple prose, and theatrical lines. Sound like a calm narrator, not a movie trailer.
-- Narrate for the group of players (one or more). If multiple characters are present, address the group. Cover: where, when if it matters, why the group is here, what's wrong or urgent now (one hook), then stop—do not resolve the horror.
-- choices: 3–5 short, actionable next moves (any character can lead).
+- ${playerCount === 1 ? "Solo play: narrate in second person ('you') or close third person for the one protagonist." : `Group play (${playerCount} players): address the group collectively; you may name individual characters when relevant.`} Cover: where, when if it matters, why ${playerCount === 1 ? "they are" : "the group is"} here, what's wrong or urgent now (one hook), then stop—do not resolve the horror.
+- choices: 3–5 short, actionable next moves.
 `;
 
-    const system = `You are an expert horror GM assistant running a Dread-style horror one-shot for one or more players. Return ONLY valid JSON. All stories are horror-themed.
+    const playerWord = playerCount === 1 ? "one player (solo)" : `${playerCount} players`;
+    const system = `You are an expert horror GM assistant running a Dread-style horror one-shot for ${playerWord}. Return ONLY valid JSON. All stories are horror-themed.
 
 PART 1 — PLAN:
 - Create exactly 5 beats and 2-3 endings that fit the story and characters. Each beat and ending must be a single line (no newlines inside strings). Escape double-quotes inside strings with backslash (\\\\").
-- If characterSheets is empty or whitespace, invent "filledCharacters" with 2–3 pre-gen player characters (Name, Goal, Fear, Secret for each; concise, one character per line) and use them for beats/endings. If the user already provided characterSheets, set "filledCharacters" to null.
+- If characterSheets is empty or whitespace, invent EXACTLY ${playerCount} pre-gen player character${playerCount === 1 ? "" : "s"} in "filledCharacters" (Name, Goal, Fear, Secret for each; concise, one character per line${playerCount === 1 ? "; solo protagonist" : ""}). If the user already provided characterSheets, set "filledCharacters" to null.
 - If constraints is empty or whitespace, invent "filledConstraints" (one line, tone/safety). If the user already provided constraints, set "filledConstraints" to null.
 
 PART 2 — OPENING (same JSON response):
@@ -399,6 +407,7 @@ Return shape: {
       storyDescription,
       characterSheets,
       constraints: constraintsText,
+      playerCount,
     });
 
     try {
@@ -550,6 +559,7 @@ ${soloSession ? "Follow the OPENING SCENE rules above for sceneText." : "Write t
     const resolvePull = body.resolvePull as { success?: boolean } | undefined;
     const playerText = String(body.playerText ?? "").trim();
     const jengaPullCount = typeof body.jengaPullCount === "number" ? body.jengaPullCount : 0;
+    const playerCount = typeof body.playerCount === "number" && body.playerCount >= 1 ? Math.round(body.playerCount) : 1;
     const beats = Array.isArray(body.beats) ? body.beats : [];
     const endings = Array.isArray(body.endings) ? body.endings : [];
 
@@ -627,12 +637,13 @@ ${soloSession ? "Follow the OPENING SCENE rules above for sceneText." : "Write t
       });
     }
 
+    const playerWord2 = playerCount === 1 ? "one player (solo)" : `${playerCount} players`;
     const immutableSolo = soloSession
       ? `
-AI GM / DREAD TOWER:
+AI GM / DREAD TOWER (${playerWord2}):
 - The beats[] and endings[] arrays are FIXED. Never invent new beats or endings; never change their wording. Only update beatHit and endingHit to reflect progress.
 - Do not reveal beats or endings as a list to the players in sceneText.
-- Narrate for the whole group (one or more players). If multiple characters are mentioned, address them collectively.
+- ${playerCount === 1 ? "Narrate for one solo player. Address the protagonist directly or as 'you'." : `Narrate for ${playerCount} players as a group. Address them collectively; give each character moments when relevant.`}
 - Endings only become true in endingHit when narratively appropriate; if a character dies or the group fails (e.g. failed Jenga), set exactly one endingHit true—prefer an ending that matches death/loss if present.
 - VOICE: Understated, matter-of-fact narration. Avoid melodrama and purple prose. Plain sentences, concrete detail.
 `
@@ -682,6 +693,7 @@ Rules:
         endingHit: body.endingHit,
         playersDo: playerText,
         recentTranscript: body.transcriptTail || [],
+        playerCount,
       });
       try {
         const out = await geminiJSON<{

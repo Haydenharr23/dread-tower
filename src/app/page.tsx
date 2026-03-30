@@ -132,6 +132,7 @@ function EditableList({
 
 export default function Home() {
   const [story, setStory] = useState("");
+  const [playerCount, setPlayerCount] = useState(1);
   const [characters, setCharacters] = useState("");
   const [constraints, setConstraints] = useState("");
   const [beats, setBeats] = useState<string[]>([]);
@@ -230,6 +231,7 @@ export default function Home() {
         story: chars ? `${storyLine}\nCharacters:\n${chars}` : storyLine,
         characters: chars,
         constraints: cons,
+        playerCount,
       });
       if (typeof data.filledCharacters === "string") {
         chars = data.filledCharacters;
@@ -330,6 +332,7 @@ export default function Home() {
         constraints: effectiveConstraints,
         beats,
         endings,
+        playerCount,
         beatHit,
         endingHit,
         playerText: text,
@@ -775,12 +778,38 @@ export default function Home() {
               <span>{sessionMode === "ai_gm" ? "2. Characters (optional)" : "2. Character sheets"}</span>
               <span className="text-muted font-normal text-sm">({characters.length} chars)</span>
             </label>
+            {sessionMode === "ai_gm" && (
+              <div className="flex items-center gap-3 mb-3">
+                <label className="text-sm text-muted font-body shrink-0">Number of players:</label>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setPlayerCount((n) => Math.max(1, n - 1))}
+                    className="w-7 h-7 flex items-center justify-center rounded border border-border bg-input/60 text-[#e0e0e0] hover:bg-input transition-colors text-lg leading-none"
+                    aria-label="Decrease player count"
+                  >−</button>
+                  <span className="w-8 text-center font-semibold text-[#e8e8e8] tabular-nums text-sm">{playerCount}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPlayerCount((n) => Math.min(8, n + 1))}
+                    className="w-7 h-7 flex items-center justify-center rounded border border-border bg-input/60 text-[#e0e0e0] hover:bg-input transition-colors text-lg leading-none"
+                    aria-label="Increase player count"
+                  >+</button>
+                </div>
+                <span className="text-xs text-muted font-body">
+                  {playerCount === 1 ? "Solo play" : `${playerCount} players`}
+                  {!characters.trim() ? " — AI will invent the cast" : ""}
+                </span>
+              </div>
+            )}
             <textarea
               className="input-text w-full min-w-0 rounded-xl border border-border bg-input p-4 resize-y focus:ring-2 focus:ring-blood/60 focus:border-blood transition-all placeholder:text-[#6b6b6b]"
               rows={sessionMode === "ai_gm" ? 8 : 6}
               placeholder={
                 sessionMode === "ai_gm"
-                  ? "Leave blank and the AI invents a cast, or add your players:\n\nName: …  Goal: …  Fear: …  Secret: …\nName: …  Goal: …  Fear: …  Secret: …"
+                  ? playerCount === 1
+                    ? "Leave blank and the AI invents one character, or add yours:\n\nName: …  Goal: …  Fear: …  Secret: …"
+                    : `Leave blank and the AI invents ${playerCount} characters, or add your players:\n\nName: …  Goal: …  Fear: …  Secret: …\nName: …  Goal: …  Fear: …  Secret: …`
                   : "Name: ...\nGoal: ...\nFear: ...\nSecret: ..."
               }
               value={characters}
