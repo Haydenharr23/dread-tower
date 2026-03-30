@@ -381,6 +381,9 @@ PART 2 — OPENING (same JSON response):
 - sceneText and choices follow the OPENING rules below.
 - Plain prose only—never markdown (no **, _, #).
 
+PART 3 — CHARACTER STATES:
+- Return "characterStates": one entry per player character (from characterSheets or your filledCharacters). Each entry: "name" (exact as written), "status" (1-5 words describing their current emotional/physical state), "location" (1-5 words for where they are at scene start).
+
 ${soloOpeningRules}
 
 Return shape: {
@@ -389,7 +392,8 @@ Return shape: {
   "filledCharacters": string | null,
   "filledConstraints": string | null,
   "sceneText": string,
-  "choices": [ 3-5 strings ]
+  "choices": [ 3-5 strings ],
+  "characterStates": [ { "name": string, "status": string, "location": string } ]
 }`;
     const user = JSON.stringify({
       storyDescription,
@@ -405,6 +409,7 @@ Return shape: {
         filledConstraints?: string | null;
         sceneText: string;
         choices: string[];
+        characterStates?: Array<{ name: string; status: string; location: string }>;
       }>(`${system}\n\nInput:\n${user}`, { maxOutputTokens: 8192, temperature: 0.65 });
       const fc = typeof out.filledCharacters === "string" ? out.filledCharacters.trim() : "";
       const fcons = typeof out.filledConstraints === "string" ? out.filledConstraints.trim() : "";
@@ -417,6 +422,7 @@ Return shape: {
         choices: Array.isArray(out.choices) ? out.choices : [],
         ...(filledCharacters ? { filledCharacters } : {}),
         ...(filledConstraints ? { filledConstraints } : {}),
+        ...(Array.isArray(out.characterStates) ? { characterStates: out.characterStates } : {}),
       });
     } catch (err) {
       const raw = err instanceof Error ? err.message : "AI request failed";
@@ -643,9 +649,20 @@ AI GM / DREAD TOWER:
       const system = `You are an AI GM for a Dread-style horror one-shot for one or more players. Return ONLY valid JSON.
 ${immutableSolo}
 In sceneText, choices, pullContext, and pullBranch fields, plain prose only—never markdown (no **, _, #).
+
+CONTENT SAFETY:
+Before processing the players' action, check it for prohibited content: explicit sexual acts, sexual content involving minors, targeted slurs or dehumanizing hate speech, or requests to harm specific real named people.
+- If such content is found: sanitize the players' input to a horror-appropriate equivalent, generate the scene using the sanitized version, and include "contentWarning" in the response: {"policy": brief name of the policy broken (e.g. "explicit sexual content"), "replaced": one sentence describing what was changed, "allowed": one sentence stating what IS allowed in this game (e.g. "Horror violence, psychological dread, character death, and dark atmosphere are allowed; explicit sexual content is not.")}.
+- If the input is acceptable, set "contentWarning" to null.
+- This game ALLOWS: atmospheric horror, graphic but non-sexual violence, monster attacks, psychological dread, character death, morally complex choices, dark themes, implied adult situations.
+- This game does NOT allow: explicit sexual acts, sexual content involving minors, targeted real-world slurs used as attacks, requests to harm specific real named people.
+
 First decide if the players' action is RISKY (physical danger, confrontation, tight escape, deception under pressure, reading forbidden text fast, etc.)—anything where failure could mean injury or serious loss. If risky, they must pull from the Jenga tower before you resolve the action—but you must still write BOTH outcomes in this same response (no second API call).
 
-Return shape: { "requiresPull": boolean, "pullContext": string, "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "pullBranch"?: { "onSuccess": { "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "gameOver": boolean }, "onFailure": { "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "gameOver": boolean } } }
+CHARACTER STATES:
+After each scene, return "characterStates": one entry per character with their updated name, status (1-5 words), and location (1-5 words).
+
+Return shape: { "requiresPull": boolean, "pullContext": string, "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "contentWarning": { "policy": string, "replaced": string, "allowed": string } | null, "characterStates": [ { "name": string, "status": string, "location": string } ], "pullBranch"?: { "onSuccess": { "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "gameOver": boolean }, "onFailure": { "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "gameOver": boolean } } }
 
 Rules:
 - If requiresPull is true: set sceneText to "" and choices to []. pullContext is one short sentence (in-world, no meta) about why the tower matters now.
@@ -674,6 +691,8 @@ Rules:
           choices: string[];
           beatHit: boolean[];
           endingHit: boolean[];
+          contentWarning?: { policy: string; replaced: string; allowed: string } | null;
+          characterStates?: Array<{ name: string; status: string; location: string }>;
           pullBranch?: {
             onSuccess?: unknown;
             onFailure?: unknown;
@@ -703,6 +722,8 @@ Rules:
             beatHit,
             endingHit,
             gameOver: false,
+            contentWarning: out.contentWarning ?? null,
+            ...(Array.isArray(out.characterStates) ? { characterStates: out.characterStates } : {}),
           });
         }
         return NextResponse.json({
@@ -712,6 +733,8 @@ Rules:
           beatHit: Array.isArray(out.beatHit) ? out.beatHit : beatHit,
           endingHit: Array.isArray(out.endingHit) ? out.endingHit : endingHit,
           gameOver: false,
+          contentWarning: out.contentWarning ?? null,
+          ...(Array.isArray(out.characterStates) ? { characterStates: out.characterStates } : {}),
         });
       } catch (err) {
         const raw = err instanceof Error ? err.message : "AI request failed";

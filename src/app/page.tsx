@@ -38,6 +38,8 @@ import { PullMethodModal } from "@/components/jenga3d/PullMethodModal";
 
 type TranscriptEntry = { role: "players" | "gm" | "tower"; text: string };
 type SessionMode = "pick" | "ai_gm" | "host" | "free_solo" | "free_gm";
+type CharacterState = { name: string; status: string; location: string };
+type ContentWarning = { policy: string; replaced: string; allowed: string };
 
 /** Precomputed solo outcomes when a Jenga pull is required (one API call for both paths). */
 type PullBranchPayload = {
@@ -46,6 +48,7 @@ type PullBranchPayload = {
   beatHit: boolean[];
   endingHit: boolean[];
   gameOver?: boolean;
+  characterStates?: CharacterState[];
 };
 
 const container = {
@@ -155,7 +158,11 @@ export default function Home() {
   const [gameOver, setGameOver] = useState(false);
   const [pullOutcome, setPullOutcome] = useState<"success" | "fail" | null>(null);
   const [logModalOpen, setLogModalOpen] = useState(false);
+  const [characterStates, setCharacterStates] = useState<CharacterState[]>([]);
+  const [beatNotif, setBeatNotif] = useState<string | null>(null);
+  const [contentWarning, setContentWarning] = useState<ContentWarning | null>(null);
   const actionTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const prevBeatHitRef = useRef<boolean[]>([]);
   const [aiModesUnlocked, setAiModesUnlocked] = useState(false);
   const [passkeyDraft, setPasskeyDraft] = useState("");
   const [passkeyError, setPasskeyError] = useState<string | null>(null);
@@ -184,6 +191,21 @@ export default function Home() {
       actionTextareaRef.current?.focus();
     }
   }, [logModalOpen]);
+
+  useEffect(() => {
+    const prev = prevBeatHitRef.current;
+    const newIdx = beatHit.findIndex((hit, i) => hit && !prev[i]);
+    if (newIdx !== -1 && beats[newIdx]) {
+      setBeatNotif(beats[newIdx]);
+    }
+    prevBeatHitRef.current = [...beatHit];
+  }, [beatHit, beats]);
+
+  useEffect(() => {
+    if (!beatNotif) return;
+    const t = setTimeout(() => setBeatNotif(null), 5500);
+    return () => clearTimeout(t);
+  }, [beatNotif]);
 
   const effectiveStory =
     sessionMode === "ai_gm"
@@ -232,6 +254,7 @@ export default function Home() {
       setJengaPulls(0);
       setPendingRisk(null);
       setGameOver(false);
+      if (Array.isArray(data.characterStates)) setCharacterStates(data.characterStates);
       setGameStarted(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
@@ -331,6 +354,10 @@ export default function Home() {
       }
       if (Array.isArray(data.beatHit)) setBeatHit(data.beatHit);
       if (Array.isArray(data.endingHit)) setEndingHit(data.endingHit);
+      if (Array.isArray(data.characterStates)) setCharacterStates(data.characterStates);
+      if (data.contentWarning && typeof data.contentWarning === "object") {
+        setContentWarning(data.contentWarning as ContentWarning);
+      }
       if (sessionMode !== "ai_gm") setHostSuggestions([]);
       setTranscript((prev) => [
         ...prev,
@@ -357,6 +384,7 @@ export default function Home() {
     setPendingRisk(null);
     setBeatHit(branch.beatHit);
     setEndingHit(branch.endingHit);
+    if (Array.isArray(branch.characterStates)) setCharacterStates(branch.characterStates);
     const towerLine = success
       ? "The block comes free. The tower still stands."
       : "The tower collapses.";
@@ -965,6 +993,26 @@ export default function Home() {
             )}
           </div>
 
+          <AnimatePresence>
+            {contentWarning && (
+              <motion.div
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                className="mb-4 rounded-xl border border-amber-600/60 bg-amber-950/40 px-4 py-3 text-sm font-body text-amber-100 space-y-1.5"
+                role="status"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <p className="font-semibold text-amber-300">Input rewritten by content policy</p>
+                  <button type="button" onClick={() => setContentWarning(null)} className="text-amber-400/70 hover:text-amber-200 shrink-0 text-xs underline">Dismiss</button>
+                </div>
+                <p><span className="text-amber-400/80 font-medium">Policy violated:</span> {contentWarning.policy}</p>
+                <p><span className="text-amber-400/80 font-medium">What was changed:</span> {contentWarning.replaced}</p>
+                <p><span className="text-amber-400/80 font-medium">Allowed in this game:</span> {contentWarning.allowed}</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {sessionMode === "ai_gm" && gameStarted && pullOutcome && (
             <motion.div
               initial={{ opacity: 0, y: -6 }}
@@ -1064,6 +1112,25 @@ export default function Home() {
                     </li>
                   ))}
                 </ul>
+              </motion.div>
+            )}
+
+            {/* Character tracker */}
+            {sessionMode === "ai_gm" && gameStarted && characterStates.length > 0 && (
+              <motion.div variants={item} className="space-y-2">
+                <div className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted font-body">
+                  <Users className="w-3.5 h-3.5 text-blood-bright shrink-0" />
+                  Characters
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {characterStates.map((c, i) => (
+                    <div key={i} className="rounded-lg border border-border/70 bg-input/40 px-3 py-2.5 space-y-0.5">
+                      <p className="text-[0.9rem] font-semibold text-[#e8e8e8] leading-tight">{c.name}</p>
+                      <p className="text-xs text-muted leading-tight"><span className="text-blood-bright/80">Status:</span> {c.status}</p>
+                      <p className="text-xs text-muted leading-tight"><span className="text-blood-bright/80">Location:</span> {c.location}</p>
+                    </div>
+                  ))}
+                </div>
               </motion.div>
             )}
 
@@ -1211,6 +1278,24 @@ export default function Home() {
                 )}
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {beatNotif && (
+          <motion.div
+            className="fixed top-6 left-1/2 -translate-x-1/2 max-w-md w-full mx-4 rounded-xl bg-emerald-950/90 border border-emerald-600/70 backdrop-blur-sm text-emerald-100 px-4 py-3 flex items-start gap-3 shadow-xl z-[90]"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ type: "spring", damping: 25 }}
+          >
+            <Flag className="w-5 h-5 shrink-0 text-emerald-400 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400 mb-0.5">Milestone reached</p>
+              <p className="text-sm font-body leading-snug">{beatNotif}</p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
