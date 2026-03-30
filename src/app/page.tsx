@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Skull,
@@ -155,6 +155,7 @@ export default function Home() {
   const [gameOver, setGameOver] = useState(false);
   const [pullOutcome, setPullOutcome] = useState<"success" | "fail" | null>(null);
   const [logModalOpen, setLogModalOpen] = useState(false);
+  const actionTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [aiModesUnlocked, setAiModesUnlocked] = useState(false);
   const [passkeyDraft, setPasskeyDraft] = useState("");
   const [passkeyError, setPasskeyError] = useState<string | null>(null);
@@ -177,6 +178,12 @@ export default function Home() {
       setSessionMode("pick");
     }
   }, [sessionMode, aiModesUnlocked]);
+
+  useEffect(() => {
+    if (!logModalOpen) {
+      actionTextareaRef.current?.focus();
+    }
+  }, [logModalOpen]);
 
   const effectiveStory =
     sessionMode === "ai_gm"
@@ -1071,6 +1078,7 @@ export default function Home() {
               </label>
               <textarea
                 id="player-action"
+                ref={actionTextareaRef}
                 className="input-text w-full min-w-0 rounded-xl border border-border bg-input p-4 resize-y min-h-[7rem] focus:ring-2 focus:ring-blood/60 focus:border-blood transition-all placeholder:text-[#6b6b6b]"
                 rows={5}
                 placeholder={
