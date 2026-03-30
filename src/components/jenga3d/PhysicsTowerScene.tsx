@@ -259,29 +259,12 @@ export function PhysicsTowerScene({
   const gameOverRef      = useRef(false);
   const gameOverCountRef = useRef(0);
 
-  // ── Freeze / unfreeze other bodies ────────────────────────────────────────
-  // Assign each render so closures always see current bodiesRef contents.
-  const freezeOtherBodiesRef = useRef((_keepId: string) => {});
-  freezeOtherBodiesRef.current = (keepId: string) => {
-    bodiesRef.current.forEach((body, id) => {
-      if (id === keepId) return;
-      body.velocity.set(0, 0, 0);
-      body.angularVelocity.set(0, 0, 0);
-      body.type = CANNON.Body.STATIC;
-    });
-  };
-
-  const unfreezeAllBodiesRef = useRef(() => {});
-  unfreezeAllBodiesRef.current = () => {
-    bodiesRef.current.forEach((body) => {
-      body.type = CANNON.Body.DYNAMIC;
-      body.linearDamping  = BLOCK_LINEAR_DAMPING;
-      body.angularDamping = BLOCK_ANGULAR_DAMPING;
-      body.velocity.set(0, 0, 0);
-      body.angularVelocity.set(0, 0, 0);
-      body.wakeUp();
-    });
-  };
+  // ── Off-table frame counter (replaces STATIC freeze) ─────────────────────
+  // Tracks consecutive frames each non-dragged body has been off-table.
+  // Game-over only fires after FALLEN_FRAMES_THRESHOLD consecutive frames,
+  // which filters out 1-2 frame physics jitter without missing real falls.
+  const fallenFramesRef = useRef<Map<string, number>>(new Map());
+  const FALLEN_FRAMES_THRESHOLD = 5; // ≈ 83 ms at 60 fps
 
   const [hoveredId,  setHoveredId]  = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -456,7 +439,6 @@ export function PhysicsTowerScene({
     d.body.angularVelocity.set(0, 0, 0);
     d.body.linearDamping  = BLOCK_LINEAR_DAMPING;
     d.body.angularDamping = BLOCK_ANGULAR_DAMPING;
-    unfreezeAllBodiesRef.current();
     dragRef.current = null;
     setControlsLocked(false);
     selectedIdRef.current = null;
@@ -510,7 +492,6 @@ export function PhysicsTowerScene({
       pendingDragRef.current = null;
       setUiMode("selected");
       setControlsLocked(true);
-      freezeOtherBodiesRef.current(specId);
       return;
     }
     pendingDragRef.current = { specId, body, pickX, pickZ, clientX, clientY, pointerId };
@@ -528,7 +509,6 @@ export function PhysicsTowerScene({
         if (selectedIdRef.current !== null) {
           e.stopImmediatePropagation();
           pendingDragRef.current = null;
-          unfreezeAllBodiesRef.current();
           selectedIdRef.current = null;
           setSelectedId(null);
           setUiMode("idle");
@@ -605,6 +585,7 @@ export function PhysicsTowerScene({
     autoStackCountRef.current = relocatedBlocks.length;
     gameOverRef.current      = false;
     gameOverCountRef.current = 0;
+    fallenFramesRef.current.clear();
     setUiMode("idle");
     setHoveredId(null);
     setSelectedId(null);
@@ -700,12 +681,11 @@ export function PhysicsTowerScene({
           drag.body.angularDamping = BLOCK_ANGULAR_DAMPING;
 
           autoStackCountRef.current += 1;
-          // Reset game-over counter — successful pull means the tower is still standing.
+          // Reset game-over counters — successful pull means the tower is still standing.
           gameOverCountRef.current = 0;
+          fallenFramesRef.current.clear();
           setPullCount((n) => n + 1);
 
-          // Unfreeze all bodies so the tower physics resumes after the pull.
-          unfreezeAllBodiesRef.current();
           // Snap the protected top-3 original layers straight after each auto-stack.
           snapTower();
         }
@@ -737,16 +717,28 @@ export function PhysicsTowerScene({
 
     // ── Game-over detection ───────────────────────────────────────────────────
     if (!gameOverRef.current && bodiesRef.current.size >= 3) {
-      // Instant loss: any block OTHER than the one being dragged falls off the table.
-      // This catches accidental nudges that send a block off the edge.
+      // Sustained off-table loss: any block OTHER than the one being dragged must
+      // stay off the table for FALLEN_FRAMES_THRESHOLD consecutive frames before
+      // game-over fires. This filters out 1-2 frame physics jitter while still
+      // catching real falls immediately after they settle.
+      const fallenFrames = fallenFramesRef.current;
       bodiesRef.current.forEach((body, id) => {
         if (gameOverRef.current) return;
         if (drag && id === drag.specId) return; // ignore the block the player is holding
+        if (selectedIdRef.current && id === selectedIdRef.current) return; // ignore selected-but-not-dragging
         const { x, y, z } = body.position;
-        if (y < -0.42 || Math.hypot(x, z) > 2.9) {
-          gameOverRef.current = true;
-          gameOverCountRef.current = 0;
-          setUiMode("gameover");
+        const isOff = y < -0.42 || Math.hypot(x, z) > 2.9;
+        if (isOff) {
+          const frames = (fallenFrames.get(id) ?? 0) + 1;
+          fallenFrames.set(id, frames);
+          if (frames >= FALLEN_FRAMES_THRESHOLD) {
+            gameOverRef.current = true;
+            gameOverCountRef.current = 0;
+            fallenFrames.clear();
+            setUiMode("gameover");
+          }
+        } else {
+          fallenFrames.delete(id);
         }
       });
 
