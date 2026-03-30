@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { RotateCcw, Boxes } from "lucide-react";
+import { RotateCcw, Boxes, Layers } from "lucide-react";
 import Link from "next/link";
 import {
   PhysicsTowerScene,
@@ -19,11 +19,13 @@ const FOREST_BG = "url(/images/tower-forest-bg.png)";
 
 function SceneReady({
   resetNonce,
+  straightenNonce,
   removedBlockIds,
   relocatedBlocks,
   onStatus,
 }: {
   resetNonce: number;
+  straightenNonce: number;
   removedBlockIds: string[];
   relocatedBlocks: RelocatedBlock[];
   onStatus: (s: PhysicsTowerStatus) => void;
@@ -31,6 +33,7 @@ function SceneReady({
   return (
     <PhysicsTowerScene
       resetNonce={resetNonce}
+      straightenNonce={straightenNonce}
       removedBlockIds={removedBlockIds}
       relocatedBlocks={relocatedBlocks}
       onStatus={onStatus}
@@ -40,6 +43,7 @@ function SceneReady({
 
 export function DreadJengaLab() {
   const [resetNonce, setResetNonce] = useState(0);
+  const [straightenNonce, setStraightenNonce] = useState(0);
   const [removedBlockIds, setRemovedBlockIds] = useState<string[]>(
     () => loadTowerLabState()?.removedIds ?? []
   );
@@ -84,6 +88,14 @@ export function DreadJengaLab() {
           >
             ← Home
           </Link>
+          <button
+            type="button"
+            onClick={() => setStraightenNonce((n) => n + 1)}
+            className="inline-flex items-center gap-2 text-sm font-body px-3 py-1.5 rounded-lg border border-border bg-input/60 hover:bg-input text-[#e0e0e0] transition-colors"
+          >
+            <Layers className="w-4 h-4" />
+            Straighten tower
+          </button>
           <button
             type="button"
             onClick={reset}
@@ -135,6 +147,7 @@ export function DreadJengaLab() {
             <Suspense fallback={null}>
               <SceneReady
                 resetNonce={resetNonce}
+                straightenNonce={straightenNonce}
                 removedBlockIds={removedBlockIds}
                 relocatedBlocks={relocatedBlocks}
                 onStatus={onStatus}

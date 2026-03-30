@@ -173,6 +173,7 @@ export type PhysicsTowerStatus = {
 
 type Props = {
   resetNonce: number;
+  straightenNonce?: number;
   removedBlockIds: string[];
   relocatedBlocks: RelocatedBlock[];
   onStatus?: (s: PhysicsTowerStatus) => void;
@@ -207,6 +208,7 @@ function computeStackSlot(
 // ─── Main scene ───────────────────────────────────────────────────────────────
 export function PhysicsTowerScene({
   resetNonce,
+  straightenNonce = 0,
   removedBlockIds,
   relocatedBlocks,
   onStatus,
@@ -388,6 +390,53 @@ export function PhysicsTowerScene({
     if (!worldRef.current) return;
     snapTower();
   }, [resetNonce, removedKey, relocKey, snapTower]);
+
+  // ── Straighten tower (re-assigned each render for fresh closures) ─────────
+  const straightenTowerRef = useRef(() => {});
+  straightenTowerRef.current = () => {
+    if (dragRef.current || gameOverRef.current) return;
+
+    // Snap all in-place original blocks to canonical positions + zero velocities.
+    snapTower();
+
+    // Find stacked blocks (those physically above the original tower top).
+    const towerTopY = PHYSICS_TOWER_LAYERS * LAYOUT_H;
+    const stacked: Array<{ body: CANNON.Body; spec: TowerBlockSpec; y: number }> = [];
+    bodiesRef.current.forEach((body, id) => {
+      if (body.position.y > towerTopY + LAYOUT_H) {
+        const spec = blocksRef.current.find((s) => s.id === id);
+        if (spec) stacked.push({ body, spec, y: body.position.y });
+      }
+    });
+
+    // Sort lowest-first to preserve pull order.
+    stacked.sort((a, b) => a.y - b.y);
+
+    // Snap each stacked block to its deterministic grid slot.
+    stacked.forEach(({ body, spec }, i) => {
+      const { x, z, quat } = computeStackSlot(i, spec);
+      const layerIndex = PHYSICS_TOWER_LAYERS + Math.floor(i / 3);
+      const y = layerIndex * LAYOUT_H + LAYOUT_H / 2;
+      body.position.set(x, y, z);
+      body.quaternion.set(quat.x, quat.y, quat.z, quat.w);
+      body.velocity.set(0, 0, 0);
+      body.angularVelocity.set(0, 0, 0);
+      body.wakeUp();
+    });
+
+    // Zero residual velocity on every body to eliminate post-snap jitter.
+    bodiesRef.current.forEach((body) => {
+      body.velocity.set(0, 0, 0);
+      body.angularVelocity.set(0, 0, 0);
+    });
+
+    autoStackCountRef.current = stacked.length;
+  };
+
+  useEffect(() => {
+    if (!straightenNonce) return;
+    straightenTowerRef.current();
+  }, [straightenNonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Persist on unmount / navigate away ───────────────────────────────────
   useEffect(() => {
