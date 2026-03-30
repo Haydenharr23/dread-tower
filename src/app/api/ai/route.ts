@@ -390,7 +390,7 @@ PART 2 — OPENING (same JSON response):
 - Plain prose only—never markdown (no **, _, #).
 
 PART 3 — CHARACTER STATES:
-- Return "characterStates": one entry per player character (from characterSheets or your filledCharacters). Each entry: "name" (exact as written), "status" (1-5 words describing their current emotional/physical state), "location" (1-5 words for where they are at scene start).
+- Return "characterStates": one entry per player character (from characterSheets or your filledCharacters). Each entry: "name" (exact as written), "status" (1-5 words describing their current emotional/physical state), "location" (1-5 words for where they are at scene start), "emoji" (one emoji that best fits their personality or appearance — e.g. 🕵️ for an investigator, 🔦 for a cautious explorer).
 
 ${soloOpeningRules}
 
@@ -401,7 +401,7 @@ Return shape: {
   "filledConstraints": string | null,
   "sceneText": string,
   "choices": [ 3-5 strings ],
-  "characterStates": [ { "name": string, "status": string, "location": string } ]
+  "characterStates": [ { "name": string, "status": string, "location": string, "emoji": string } ]
 }`;
     const user = JSON.stringify({
       storyDescription,
@@ -668,12 +668,18 @@ Before processing the players' action, check it for prohibited content: explicit
 - This game ALLOWS: atmospheric horror, graphic but non-sexual violence, monster attacks, psychological dread, character death, morally complex choices, dark themes, implied adult situations.
 - This game does NOT allow: explicit sexual acts, sexual content involving minors, targeted real-world slurs used as attacks, requests to harm specific real named people.
 
+PACING — CRITICAL:
+- Spend at most ONE sentence acknowledging what the players did. Do NOT recap or paraphrase their action in detail.
+- The majority of sceneText must be NEW information: what changes, what is revealed, what threat escalates, what the world does next. Push the story forward.
+- Each scene should visibly advance toward the next unmet beat. If 2+ beats are already hit, increase tension and move toward an ending.
+- sceneText length: 80–160 words. Dense, purposeful sentences only.
+
 First decide if the players' action is RISKY (physical danger, confrontation, tight escape, deception under pressure, reading forbidden text fast, etc.)—anything where failure could mean injury or serious loss. If risky, they must pull from the Jenga tower before you resolve the action—but you must still write BOTH outcomes in this same response (no second API call).
 
 CHARACTER STATES:
-After each scene, return "characterStates": one entry per character with their updated name, status (1-5 words), and location (1-5 words).
+After each scene, return "characterStates": one entry per character with their updated name, status (1-5 words), location (1-5 words), and emoji (one emoji that fits their personality or appearance).
 
-Return shape: { "requiresPull": boolean, "pullContext": string, "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "contentWarning": { "policy": string, "replaced": string, "allowed": string } | null, "characterStates": [ { "name": string, "status": string, "location": string } ], "pullBranch"?: { "onSuccess": { "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "gameOver": boolean }, "onFailure": { "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "gameOver": boolean } } }
+Return shape: { "requiresPull": boolean, "pullContext": string, "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "contentWarning": { "policy": string, "replaced": string, "allowed": string } | null, "characterStates": [ { "name": string, "status": string, "location": string, "emoji": string } ], "pullBranch"?: { "onSuccess": { "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "gameOver": boolean }, "onFailure": { "sceneText": string, "choices": [strings], "beatHit": boolean[], "endingHit": boolean[], "gameOver": boolean } } }
 
 Rules:
 - If requiresPull is true: set sceneText to "" and choices to []. pullContext is one short sentence (in-world, no meta) about why the tower matters now.

@@ -38,7 +38,7 @@ import { PullMethodModal } from "@/components/jenga3d/PullMethodModal";
 
 type TranscriptEntry = { role: "players" | "gm" | "tower"; text: string };
 type SessionMode = "pick" | "ai_gm" | "host" | "free_solo" | "free_gm";
-type CharacterState = { name: string; status: string; location: string };
+type CharacterState = { name: string; status: string; location: string; emoji?: string };
 type ContentWarning = { policy: string; replaced: string; allowed: string };
 
 /** Precomputed solo outcomes when a Jenga pull is required (one API call for both paths). */
@@ -1154,7 +1154,10 @@ export default function Home() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {characterStates.map((c, i) => (
                     <div key={i} className="rounded-lg border border-border/70 bg-input/40 px-3 py-2.5 space-y-0.5">
-                      <p className="text-[0.9rem] font-semibold text-[#e8e8e8] leading-tight">{c.name}</p>
+                      <p className="text-[0.9rem] font-semibold text-[#e8e8e8] leading-tight flex items-center gap-1.5">
+                        {c.emoji && <span aria-hidden>{c.emoji}</span>}
+                        {c.name}
+                      </p>
                       <p className="text-xs text-muted leading-tight"><span className="text-blood-bright/80">Status:</span> {c.status}</p>
                       <p className="text-xs text-muted leading-tight"><span className="text-blood-bright/80">Location:</span> {c.location}</p>
                     </div>

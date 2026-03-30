@@ -234,9 +234,9 @@ export function PullMethodModal({ context, jengaPulls, onResult }: PullMethodMod
             >
               <Zap className="w-5 h-5 text-muted shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold text-[#e8e8e8] text-sm">Physical / skip</p>
+                <p className="font-semibold text-[#e8e8e8] text-sm">Physical tower</p>
                 <p className="text-xs text-muted font-body mt-0.5">
-                  Use your own tower or skip. Log whether it succeeded.
+                  Use your own real Jenga tower. Log whether it succeeded.
                 </p>
               </div>
             </motion.button>
@@ -282,11 +282,11 @@ export function PullMethodModal({ context, jengaPulls, onResult }: PullMethodMod
           </div>
         )}
 
-        {/* ── Physical / skip ── */}
+        {/* ── Physical tower ── */}
         {phase === "skip" && (
           <div className="p-6 space-y-4">
             <p className="text-sm text-muted font-body leading-relaxed">
-              Use your own tower, or skip. What happened?
+              Pull a block from your real tower. What happened?
             </p>
             <div className="grid grid-cols-2 gap-3">
               <motion.button
